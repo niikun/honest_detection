@@ -45,7 +45,7 @@ pub enum Action {
     Violated
 }
 
-pub fn run() {
+pub fn run() ->Qvalue{
     let mut qvalue = Qvalue::new();
     let params = Params::default();
     for i in 0..1000{
@@ -53,14 +53,15 @@ pub fn run() {
         update_qvalue(&mut qvalue, &params,&action);
         println!("{}:,{:?}",i,qvalue);
     }
+    qvalue
 }
 
 pub fn update_qvalue(qvalue:&mut Qvalue, params:&Params, action:&Action){
     let reward = get_reward(params,action);
     if action == &Action::Violated {
-        qvalue.violated_case += reward * params.learning_rate;
+        qvalue.violated_case += (reward - qvalue.violated_case) * params.learning_rate;
     } else {
-        qvalue.compliant_case += reward * params.learning_rate;
+        qvalue.compliant_case += (reward - qvalue.compliant_case) * params.learning_rate;
     }
 }
 
@@ -74,9 +75,9 @@ pub fn get_reward(params:&Params,action:&Action) -> f32 {
 
 pub fn get_action(qvalue:&Qvalue) -> Action{
     let greedy_val:f32 = rand::random();
-    let epsiron = 0.7;
+    let epsilon = 0.3;
     let mut action = Action::Compliant;
-    if greedy_val > epsiron {
+    if greedy_val > 1.0 - epsilon {
         let random_val:f32 = rand::random();
         if random_val >= 0.5 {
             action = Action::Compliant;
@@ -105,5 +106,17 @@ mod tests {
         assert_eq!(params.n, 10u32);
         assert_eq!(params.gain, 1.0f32);
         assert_eq!(mode, Mode::None);
+    }
+
+    #[test]
+    fn test_run() {
+        let qvalue = run();
+        let action = if qvalue.violated_case >= qvalue.compliant_case {
+            Action::Violated
+        } else {
+            Action::Compliant
+        };
+        assert_eq!(action, Action::Violated);
+        assert!(qvalue.violated_case < 1.0);
     }
 }
