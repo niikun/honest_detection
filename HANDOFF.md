@@ -1,6 +1,6 @@
 # honest_detection 学習ハンドオフ
 
-作成: 2026-10-28 / 最終更新: 2026-10-29
+作成: 2026-10-28 / 最終更新: 2026-10-31
 目的: 検知共有×評判ネットワークのシミュレーションを**一から作り**、Rust（型・所有権・テスト）と設計力を身につける。最終的に Axum API + Lovable(React) まで（期限 2026-12-31）。
 関連: 秘書ノート `topics/verifiable-detection-reward-network.md`（構想）/ `topics/honest-detection-rust-api-roadmap.md`（ロードマップ）
 
@@ -27,7 +27,16 @@
 - 2026-10-28: `cargo new --lib` 済み。`STEPS.md`（6ステップ）と `HINTS.md`（空）あり。GitHub に push 済み（`origin`: niikun/honest_detection）
 - 2026-10-29: **ステップ1・2 完了**。`Mode` は `Params` に入れず別 enum。2択 bandit（`Qvalue`・`get_action`・`update_qvalue`）が動き、`cargo test` 2件成功（`test_run` は罰なしで `violated_case >= compliant_case` かつ `< 1.0` を確認）。説明は `Note.md` に記録
 - 積み残し: ①`test_run` は Q値の大小しか見ておらず、選んだ行動は未検証 ②`epsilon = 0.0` にしたときの挙動は未確認（探索の役割を理解するため、余裕があれば）
-- 次の一歩（ステップ3）: 違反に確率で罰（-P）を付ける。「期待利得 = 1.0 - 確率×P」で、選ぶ行動が切り替わる P の境界を式で予想し、実験結果と合わせる
+- 2026-10-30〜31: **ステップ3 途中**
+  - 済: 乱数を `StdRng::seed_from_u64(42)` に変更し `&mut rng` を `run`→`get_action`/`update_qvalue`→`get_reward` へ渡す。`let mut`+上書き → `if` 式に。`get_reward` に罰（確率 `detect_p` で `gain - p_viol`）を実装
+  - 済: 予想を `Note.md` に記録。期待利得 = `1 - detect_p * p_viol`、境界 P=2、P=3 なら期待値 -0.5
+  - 問題: `test_run` が罰の導入で失敗 → 期待値を `Compliant` に書き換えて通した。結果「罰なしなら違反を選ぶ」（ステップ2の完了条件）のテストが消えた。`assert!(violated_case < 1.0)` も今は意味が薄い（予想は「-0.5 付近」）
+- 積み残し（ステップ3）:
+  1. **`run()` が `Params::default()` とシード 42 を中に固定している**ため、罰なし/罰ありを別テストにできない
+  2. `Qvalue::new()` がまだ `rand::random()`（シード外）。初期値が毎回変わり、再現性が不完全。「同じシードなら同じ結果」を確かめるテストで露見させる（`Qvalue` は `PartialEq` あり）
+  3. `Note.md` の予想に「どちらの行動を選ぶか」が未記入。「-0.5 になる」→「-0.5 付近で揺れる」（報酬は 1.0 か -2.0）。どの程度のずれを許すか決める
+  4. ステップ2の積み残し（行動の検証、`epsilon = 0.0` の挙動）は継続
+- 次の一歩: 問い「罰なし（p_viol=0）と罰あり（p_viol=3）を別々のテストで残すには、`run` をどう変えるか？」（ヒント: lib.rs の `run` 内の `Params::default()` と `seed` の2行＝外から渡したい値）→ `run` の引数を決め、テスト2本に分ける → P を境界（2）の前後で動かして予想と照合
 
 ## 参考実装（見るのは各ステップを書き終えてから）
 
@@ -131,5 +140,7 @@ N人（N=10）が毎ラウンド「守る/違反する」を選ぶ。違反は�
 
 ## 未決
 
-- `mode` を `Params` に入れるか、`run` の引数にするか（ステップ1の最初の問い）
-- 乱数: `rand` 0.10 の API（`RngExt`）。シード固定で再現性を取る方針
+- ~~`mode` を `Params` に入れるか~~ → 外に出す（2026-10-28 決定）
+- シードを `Params` に入れるか、`run` の引数にするか（次の一歩の問いと同じ）
+- 乱数: `rand` 0.10 の API（`RngExt`）。`StdRng` + `SeedableRng::seed_from_u64` で固定済み（2026-10-30）
+- SPAM_P の正確な定義（用語集参照。ステップ4までに決める）

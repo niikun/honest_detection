@@ -6,3 +6,10 @@
 ## test_run が成功することは、その説明のうち何を裏づけているか。裏づけていない部分があれば、それも教えてください。
 1000回施行を繰り返した結果、qvalue.violated>qvalue.compliantであることとqvalue.violatedがgainの1.0を超えないこと
 しかし、行動については検証していない。
+
+## 見つかったときのペナルティPがある場合
+rewardの期待値 = 1 - detect_p * p_viol
+detect_p = 0.5, p_viol = 2のとき、violatedのrewardの期待値0はcompliantのreward期待値と同じになる
+
+detect_p = 0.5, p_viol = 3のとき、期待値は-0.5
+qvalue.violated_caseも-0.5になる。

@@ -1,5 +1,5 @@
-
-use rand;
+use rand::rngs::StdRng;
+use rand::{RngExt, SeedableRng};
 
 #[derive(Debug)]
 pub struct Params {
@@ -48,16 +48,18 @@ pub enum Action {
 pub fn run() ->Qvalue{
     let mut qvalue = Qvalue::new();
     let params = Params::default();
+    let seed: u64 = 42;
+    let mut rng = StdRng::seed_from_u64(seed);
     for i in 0..1000{
-        let action = get_action(&qvalue);
-        update_qvalue(&mut qvalue, &params,&action);
+        let action = get_action(&qvalue, &mut rng);
+        update_qvalue(&mut qvalue, &params,&action, &mut rng);
         println!("{}:,{:?}",i,qvalue);
     }
     qvalue
 }
 
-pub fn update_qvalue(qvalue:&mut Qvalue, params:&Params, action:&Action){
-    let reward = get_reward(params,action);
+pub fn update_qvalue(qvalue:&mut Qvalue, params:&Params, action:&Action, rng:&mut StdRng){
+    let reward = get_reward(params,action,rng);
     if action == &Action::Violated {
         qvalue.violated_case += (reward - qvalue.violated_case) * params.learning_rate;
     } else {
@@ -65,32 +67,37 @@ pub fn update_qvalue(qvalue:&mut Qvalue, params:&Params, action:&Action){
     }
 }
 
-pub fn get_reward(params:&Params,action:&Action) -> f32 {
-    let mut reward = 0.0;
-    if action == &Action::Violated {
-        reward = params.gain;
-    }
+pub fn get_reward(params:&Params,action:&Action, rng: &mut StdRng) -> f32 {
+    let random_num:f32 = rng.random();
+    let reward = if action == &Action::Violated {
+        if random_num <= params.detect_p {
+            params.gain - params.p_viol
+        } else { 
+            params.gain
+        }
+    } else {
+        0.0
+    };
     reward
 }
 
-pub fn get_action(qvalue:&Qvalue) -> Action{
-    let greedy_val:f32 = rand::random();
+pub fn get_action(qvalue:&Qvalue, rng: &mut StdRng) -> Action{
+    let greedy_val:f32 = rng.random();
     let epsilon = 0.3;
-    let mut action = Action::Compliant;
-    if greedy_val > 1.0 - epsilon {
-        let random_val:f32 = rand::random();
+    let action = if greedy_val > 1.0 - epsilon {
+        let random_val:f32 = rng.random();
         if random_val >= 0.5 {
-            action = Action::Compliant;
+            Action::Compliant
         } else {
-            action = Action::Violated;
+            Action::Violated
         }
     } else {
         if qvalue.compliant_case > qvalue.violated_case {
-            action = Action::Compliant;
+            Action::Compliant
         } else {
-            action = Action::Violated;
+            Action::Violated
         }
-    }
+    };
     action
 }
 
@@ -116,7 +123,7 @@ mod tests {
         } else {
             Action::Compliant
         };
-        assert_eq!(action, Action::Violated);
+        assert_eq!(action, Action::Compliant);
         assert!(qvalue.violated_case < 1.0);
     }
 }
