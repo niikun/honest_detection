@@ -32,7 +32,6 @@ pub struct Qvalue {
     violated_case:f32
 }
 
-
 impl Qvalue{
     pub fn new(rng:&mut StdRng)->Self {
         Qvalue{
@@ -41,6 +40,36 @@ impl Qvalue{
         }
     } 
 }
+
+pub struct Agent{
+    qvalue: Qvalue,
+    count_report: usize,
+    count_false_report:usize,
+    count_ignore:usize
+}
+
+impl Agent {
+    pub fn new(rng: &mut StdRng)  -> Self{
+        let qvalue = Qvalue::new(rng);
+        Agent{qvalue:qvalue,count_report:0, count_false_report:0, count_ignore:0}
+    }
+    pub fn report(&mut self) {
+        self.count_report += 1;
+    }
+
+    pub fn false_report(&mut self) {
+        self.count_false_report += 1;
+    }
+
+    pub fn ignore(&mut self) {
+        self.count_ignore += 1;
+    }
+}
+
+pub struct Agents {
+    agents: Vec<Agent>
+}
+
 #[derive(Debug,PartialEq)]
 pub enum Action {
     Compliant,
