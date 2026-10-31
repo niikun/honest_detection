@@ -13,3 +13,8 @@ detect_p = 0.5, p_viol = 2のとき、violatedのrewardの期待値0はcompliant
 
 detect_p = 0.5, p_viol = 3のとき、期待値は-0.5
 qvalue.violated_caseも-0.5になる。
+
+## Q=1.5,Q=2.5だと不安定な理由
+violated_caseは、p_viol=1.5のとき 0.25に、p_viol=2.5のとき -0.25に近づく.
+しかし、最後が１またはー３になるので、 ±0.2〜0.3とおおきく振動する。
+そのため、今までの平均で算出することにした。

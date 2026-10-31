@@ -1,7 +1,7 @@
 use rand::rngs::StdRng;
 use rand::{RngExt, SeedableRng};
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct Params {
     n:u32,
     gain:f32,
@@ -9,7 +9,9 @@ pub struct Params {
     p_viol:f32,
     detect_p:f32,
     cost:f32,
-    learning_rate:f32
+    learning_rate:f32,
+    seed:u64,
+    epochs:usize
 }
 
 #[derive(Debug, PartialEq)]
@@ -21,7 +23,7 @@ pub enum Mode {
 
 impl Default for Params { 
     fn default()->Self {
-        Self { n: 10, gain: 1.0, harm: 0.3, p_viol:3.0, detect_p:0.5, cost: 0.2, learning_rate:0.1}
+        Self { n: 10, gain: 1.0, harm: 0.3, p_viol:0.0, detect_p:0.5, cost: 0.2, learning_rate:0.1,seed:64,epochs:1000}
     }
 }
 #[derive(Debug, PartialEq)]
@@ -32,10 +34,10 @@ pub struct Qvalue {
 
 
 impl Qvalue{
-    pub fn new()->Self {
+    pub fn new(rng:&mut StdRng)->Self {
         Qvalue{
-            compliant_case: rand::random(),
-            violated_case: rand::random()
+            compliant_case: rng.random(),
+            violated_case: rng.random()
         }
     } 
 }
@@ -45,17 +47,30 @@ pub enum Action {
     Violated
 }
 
-pub fn run() ->Qvalue{
-    let mut qvalue = Qvalue::new();
-    let params = Params::default();
-    let seed: u64 = 42;
-    let mut rng = StdRng::seed_from_u64(seed);
-    for i in 0..1000{
+pub fn run(params:&Params) ->Qvalue{
+    let mut rng = StdRng::seed_from_u64(params.seed);
+    let mut qvalue = Qvalue::new(&mut rng);
+    let mut amount_violated = 0.0;
+    let mut amount_compliant = 0.0;
+    let mut count_violated = 0;
+    let mut count_compliant = 0;
+    for i in 0..params.epochs{
         let action = get_action(&qvalue, &mut rng);
         update_qvalue(&mut qvalue, &params,&action, &mut rng);
+        if i >= params.epochs / 2 {
+            if action == Action::Violated {
+                amount_violated += qvalue.violated_case;
+                count_violated += 1;            
+            } else {
+                amount_compliant += qvalue.compliant_case;
+                count_compliant += 1;        
+            }
+        }
         println!("{}:,{:?}",i,qvalue);
     }
-    qvalue
+    let compliant_case:f32 = amount_compliant / count_compliant as f32;
+    let violated_case:f32 = amount_violated / count_violated as f32;
+    Qvalue{compliant_case: compliant_case, violated_case: violated_case}
 }
 
 pub fn update_qvalue(qvalue:&mut Qvalue, params:&Params, action:&Action, rng:&mut StdRng){
@@ -101,6 +116,15 @@ pub fn get_action(qvalue:&Qvalue, rng: &mut StdRng) -> Action{
     action
 }
 
+pub fn choose_action(qvalue:&Qvalue)->Action {
+    let action = if qvalue.violated_case >= qvalue.compliant_case {
+            Action::Violated
+        } else {
+            Action::Compliant
+        };
+    action
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -117,13 +141,20 @@ mod tests {
 
     #[test]
     fn test_run() {
-        let qvalue = run();
-        let action = if qvalue.violated_case >= qvalue.compliant_case {
-            Action::Violated
-        } else {
-            Action::Compliant
-        };
-        assert_eq!(action, Action::Compliant);
-        assert!(qvalue.violated_case < 1.0);
+        let params1 = Params::default();
+        let mut params2:Params = params1.clone();
+        let mut params3:Params = params1.clone();
+        params2.p_viol = 1.5;
+        params3.p_viol = 2.5;
+        let qvalue1 = run(&params1);
+        let qvalue2 = run(&params2);
+        let qvalue3 = run(&params3);
+        let action1 = choose_action(&qvalue1);
+        let action2 = choose_action(&qvalue2);
+        let action3 = choose_action(&qvalue3);
+        assert_eq!(action1, Action::Violated);
+        assert_eq!(action2, Action::Violated);
+        assert_eq!(action3, Action::Compliant);
+        assert!(qvalue1.violated_case < 1.0);
     }
 }
