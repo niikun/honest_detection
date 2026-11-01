@@ -3,7 +3,7 @@ use rand::{RngExt, SeedableRng};
 
 #[derive(Debug, Copy, Clone)]
 pub struct Params {
-    n:u32,
+    n:usize,
     gain:f32,
     harm:f32,
     p_viol:f32,
@@ -41,18 +41,40 @@ impl Qvalue{
     } 
 }
 
+#[derive(Debug)]
+pub struct Qreport {
+    report_seen: f32,
+    report_notseen: f32,
+    ignore_seen: f32,
+    ignore_notseen: f32
+}
+impl Qreport {
+    pub fn new(rng:&mut StdRng) -> Self{
+        Qreport{
+            report_seen: rng.random(),
+            report_notseen:rng.random(),
+            ignore_seen:rng.random(),
+            ignore_notseen:rng.random()
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct Agent{
     qvalue: Qvalue,
+    qreport: Qreport,
     count_report: usize,
     count_false_report:usize,
-    count_ignore:usize
+    count_ignore:usize,
 }
 
 impl Agent {
     pub fn new(rng: &mut StdRng)  -> Self{
         let qvalue = Qvalue::new(rng);
-        Agent{qvalue:qvalue,count_report:0, count_false_report:0, count_ignore:0}
+        let qreport = Qreport::new(rng);
+        Agent{qvalue:qvalue,qreport:qreport, count_report:0, count_false_report:0, count_ignore:0}
     }
+
     pub fn report(&mut self) {
         self.count_report += 1;
     }
@@ -66,6 +88,7 @@ impl Agent {
     }
 }
 
+#[derive(Debug)]
 pub struct Agents {
     agents: Vec<Agent>
 }
@@ -74,6 +97,52 @@ pub struct Agents {
 pub enum Action {
     Compliant,
     Violated
+}
+#[derive(Debug, PartialEq)]
+pub enum Observed {
+    Seen,
+    Notseen
+}
+
+pub struct Observe {
+    item:usize
+}
+
+impl Observe {
+    fn get_observe(rng:&mut StdRng, params:&Params,myid:usize) -> Self{ 
+        let n = params.n;   
+        assert!(n != 1);
+        let mut item = rng.random_range(0..n);
+        while item == myid{
+            item = rng.random_range(0..n);
+        } 
+        Observe{item:item}
+    }
+}
+
+pub struct ObserveList {
+    observe_vec:Vec<Observe>,
+    observed_vec:Vec<Observed>
+}
+
+impl ObserveList {
+    pub fn new(rng:&mut StdRng, params:&Params)-> Self{
+        
+        let mut observe_vec:Vec<Observe> =Vec::new();
+        let mut observed_vec:Vec<Observed> = Vec::new(); 
+        for i in 0..params.n {
+            observed_vec.push(Observed::Notseen);
+        }
+        for i in 0..params.n{
+            let observe:Observe = Observe::get_observe(rng, params, i);
+            let observed_item = observe.item;
+            if observed_vec[observed_item] == Observed::Notseen {
+                observed_vec[observed_item] = Observed::Seen;
+            }
+            observe_vec.push(Observe{item: observed_item});
+        }
+        ObserveList { observe_vec: observe_vec, observed_vec: observed_vec }
+    }
 }
 
 pub fn run(params:&Params) ->Qvalue{
@@ -154,7 +223,6 @@ pub fn choose_action(qvalue:&Qvalue)->Action {
     action
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -163,7 +231,7 @@ mod tests {
     fn test_default() {
         let params = Params::default();
         let mode:Mode = Mode::None;
-        assert_eq!(params.n, 10u32);
+        assert_eq!(params.n, 10usize);
         assert_eq!(params.gain, 1.0f32);
         assert_eq!(mode, Mode::None);
     }
