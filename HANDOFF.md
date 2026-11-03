@@ -59,6 +59,12 @@
   3. N体のラウンドを別の関数にする（①全員が行動 → ②見る → ③通報/無視）。1体用の `run` は触らない
   4. テスト: none 条件で通報がほぼゼロになること
 
+- 2026-11-04: 最終的な動作環境の候補として `blockchaininnovation/2026gw-amnesia`（Twin Towns・非公開）を確認。Node 22 + pnpm / Foundry(Anvil) / TypeScript モノレポで、Rust は含まれない。honest_detection をどう載せるかは未決
+  - 方針（案）: honest_detection は Axum API（通報・評判サービス）として別に立て、Twin Towns から HTTP で呼ぶ。Rust のまま。ステップ4〜5を先に終わらせ、API はその後
+  - 呼ぶ場所: `apps/server/src/runner/` か `packages/ledger`。`packages/sim` は純粋関数（I/O禁止）なので呼ばない。街ごとの違いは台帳と Observation（`townNews`）だけに閉じ込める
+  - API の最初の口: ①通報を受け取る ②住民ごとの評判を返す。最初はローカル別ポート。AWS（`infra/` の CDK）は最後
+  - 未決: 評判を住民の行動に影響させるか、画面表示だけか。どの出来事を API に送るか（違反の目撃・通報など）
+
 ## 参考実装（見るのは各ステップを書き終えてから）
 
 - `~/project/honest_detection_rs`: Claudeが先に書いた移植版（Python版 `~/project/honest_detection_sim/sim.py` の移植）。**この環境は別PCにはない**。完成形の結果は下のとおり
