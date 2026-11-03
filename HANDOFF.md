@@ -1,6 +1,6 @@
 # honest_detection 学習ハンドオフ
 
-作成: 2026-10-28 / 最終更新: 2026-11-02
+作成: 2026-10-28 / 最終更新: 2026-11-03
 目的: 検知共有×評判ネットワークのシミュレーションを**一から作り**、Rust（型・所有権・テスト）と設計力を身につける。最終的に Axum API + Lovable(React) まで（期限 2026-12-31）。
 関連: 秘書ノート `topics/verifiable-detection-reward-network.md`（構想）/ `topics/honest-detection-rust-api-roadmap.md`（ロードマップ）
 
@@ -47,11 +47,15 @@
   - つまずき: ①ラウンドの順番が逆（見る→通報→行動を1人ずつ）②`ObserveList::new` を内側ループで毎回作り直した ③通報の判断に違反Q（`qvalue`）を使った（正しくは `qreport`）④`get_observe` に `&Agents` を渡したが、`Agent` は「このラウンドの行動」を持っていないので相手の行動が分からない ⑤`run` を書き換えて1体の `test_run` が壊れた（ステップ2・3の検証が消える）
   - Rust: E0596 に遭遇。`let mut a = &v[j]`（付け替え可）と `let a = &mut v[j]`（中身を書き換え可）は別物。Book 4.2「Mutable References」
   - 教訓: 整理しきれていないときに全体を書き換えない。小さく区切ってテストを通しながら進む
-- 次の一歩（ステップ4）— **小さく区切る**:
-  0. 1体用の `run` と `test_run` は残す。N体は**別の関数**にする
-  1. ①だけ: 全員が守る/違反を選び、その結果を保存する。答えかけの問い「N=3 の例（0:違反, 1:守る, 2:違反）を Rust の値1つで表すと？」→ `Action` を N人分並べた型
-  2. ②: 各自が他の1人を見る。状態は「相手が違反したときだけ、確率 `detect_p` で Seen。守っていたら必ず Notseen」。相手の行動は1の結果を「見た相手の番号」で引く。状態は見た側ごとに持つ（上の「良かった案」）
-  3. 1・2 でコンパイルとテストが通ってから ③: `qreport` で通報/無視を選び（ε-greedy）、報酬で更新。none 条件の報酬は `-COST` のみ。`SPAM_P` の定義もここで決める
+- 2026-11-03: **ステップ4 の ①② 完了**（小さく区切って、テストを通しながら進めた）。`cargo test` 5件成功。未コミット
+  - 済①: `Agent` に `get_action` / `update_qvalue` をメソッド化（`epsilon` は `Params` へ）。1体用の `run` / `test_run` は残して通っている。`Agents::get_actions -> Actions { Vec<Action> }`（i番目＝i番の今ラウンドの行動）
+  - 済②: `Observe { observer, observed, observe_status }`（`ObserveStatus { See, Notsee }`）。`Observe::new` が `&Actions` を受け取り、「確率 `detect_p` で当たり、かつ相手が違反」のときだけ `See`。相手の行動は `Agent` に持たせず、`&Actions` で渡す方式（B案）。見る相手は各自ランダムな1人（自分以外）。`Observes` が全員分を持つ
+  - テスト: `test_get_observe_detectp1` / `detectp0`（n=2、守る/違反を固定して結果が確定）。`test_get_actions` の2つ目の assert は常に真で何も確かめていない（任意で直す）
+  - 小さな修正: `count_ignore` のメソッド名を `ignore` に。`n >= 2` を条件にする書き方もある。`#[test]` のインデントのずれ（1か所）
+- 次の一歩（ステップ4 ③）:
+  1. 通報/無視を選ぶ関数を作る。状態は `Observe` の `observe_status`（見た側ごと）、Q値は `qreport`（違反Q `qvalue` ではない）。ε-greedy で選ぶ
+  2. 報酬を決めて更新する。none 条件は `-COST` のみ。偽通報（Notsee で通報）の扱いと `SPAM_P` の定義もここで決める
+  3. N体のラウンドを別の関数にする（①全員が行動 → ②見る → ③通報/無視）。1体用の `run` は触らない
   4. テスト: none 条件で通報がほぼゼロになること
 
 ## 参考実装（見るのは各ステップを書き終えてから）

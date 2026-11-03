@@ -4,14 +4,15 @@ use rand::{RngExt, SeedableRng};
 #[derive(Debug, Copy, Clone)]
 pub struct Params {
     n:usize,
-    gain:f32,
-    harm:f32,
-    p_viol:f32,
-    detect_p:f32,
-    cost:f32,
-    learning_rate:f32,
+    gain:f64,
+    harm:f64,
+    p_viol:f64,
+    detect_p:f64,
+    cost:f64,
+    learning_rate:f64,
     seed:u64,
-    epochs:usize
+    epochs:usize,
+    epsilon:f64
 }
 
 #[derive(Debug, PartialEq)]
@@ -23,13 +24,13 @@ pub enum Mode {
 
 impl Default for Params { 
     fn default()->Self {
-        Self { n: 10, gain: 1.0, harm: 0.3, p_viol:0.0, detect_p:0.5, cost: 0.2, learning_rate:0.1,seed:64,epochs:1000}
+        Self { n: 10, gain: 1.0, harm: 0.3, p_viol:0.0, detect_p:0.5, cost: 0.2, learning_rate:0.1,seed:64,epochs:1000, epsilon:0.3}
     }
 }
 #[derive(Debug, PartialEq)]
 pub struct Qvalue {
-    compliant_case:f32,
-    violated_case:f32
+    compliant_case:f64,
+    violated_case:f64
 }
 
 impl Qvalue{
@@ -43,10 +44,10 @@ impl Qvalue{
 
 #[derive(Debug)]
 pub struct Qreport {
-    report_seen: f32,
-    report_notseen: f32,
-    ignore_seen: f32,
-    ignore_notseen: f32
+    report_seen: f64,
+    report_notseen: f64,
+    ignore_seen: f64,
+    ignore_notseen: f64
 }
 impl Qreport {
     pub fn new(rng:&mut StdRng) -> Self{
@@ -75,6 +76,33 @@ impl Agent {
         Agent{qvalue:qvalue,qreport:qreport, count_report:0, count_false_report:0, count_ignore:0}
     }
 
+    pub fn get_action(&self, params:&Params, rng: &mut StdRng) -> Action{
+        let greedy_val:f64 = rng.random();
+        let action = if greedy_val > 1.0 - params.epsilon {
+            let random_val:f64 = rng.random();
+            if random_val >= 0.5 {
+                Action::Compliant
+            } else {
+                Action::Violated
+            }
+        } else {
+            if self.qvalue.compliant_case > self.qvalue.violated_case {
+                Action::Compliant
+            } else {
+                Action::Violated
+            }
+        };
+        action
+    }
+    pub fn update_qvalue(&mut self, params:&Params, action:&Action, rng:&mut StdRng){
+        let reward = get_reward(params,action,rng);
+        if action == &Action::Violated {
+            self.qvalue.violated_case += (reward - self.qvalue.violated_case) * params.learning_rate;
+        } else {
+            self.qvalue.compliant_case += (reward - self.qvalue.compliant_case) * params.learning_rate;
+        }
+    }
+
     pub fn report(&mut self) {
         self.count_report += 1;
     }
@@ -93,95 +121,99 @@ pub struct Agents {
     agents: Vec<Agent>
 }
 
+impl Agents {
+    pub fn get_actions(&self, params:&Params, rng: &mut StdRng) -> Actions{
+        let actions = self.agents.iter()
+                    .map(|agent| agent.get_action(params,rng))
+                    .collect();
+        Actions{actions:actions}
+    }
+}
+
 #[derive(Debug,PartialEq)]
 pub enum Action {
     Compliant,
     Violated
 }
+
+pub struct Actions {
+    actions: Vec<Action>
+}
+
 #[derive(Debug, PartialEq)]
-pub enum Observed {
-    Seen,
-    Notseen
+pub enum ObserveStatus {
+    See,
+    Notsee
 }
 
 pub struct Observe {
-    item:usize
+    observer:usize,
+    observed:usize,
+    observe_status:ObserveStatus
 }
 
 impl Observe {
-    fn get_observe(rng:&mut StdRng, params:&Params,myid:usize) -> Self{ 
+    pub fn new(rng:&mut StdRng, params:&Params,observer:usize, actions:&Actions) -> Self{ 
         let n = params.n;   
         assert!(n != 1);
-        let mut item = rng.random_range(0..n);
-        while item == myid{
-            item = rng.random_range(0..n);
+        let mut observed = rng.random_range(0..n);
+        while observed == observer{
+            observed = rng.random_range(0..n);
         } 
-        Observe{item:item}
+        let value_p:f64 = rng.random();
+        let observe_status = if (value_p >= (1.0 - params.detect_p)) 
+                                                && (actions.actions[observed]==Action::Violated)  {
+            ObserveStatus::See
+        } else {
+            ObserveStatus::Notsee
+        };
+        Observe{observer:observer, observed:observed, observe_status:observe_status}
     }
 }
 
-pub struct ObserveList {
-    observe_vec:Vec<Observe>,
-    observed_vec:Vec<Observed>
+pub struct Observes {
+    observes:Vec<Observe>
 }
 
-impl ObserveList {
-    pub fn new(rng:&mut StdRng, params:&Params)-> Self{
-        
-        let mut observe_vec:Vec<Observe> =Vec::new();
-        let mut observed_vec:Vec<Observed> = Vec::new(); 
-        for i in 0..params.n {
-            observed_vec.push(Observed::Notseen);
-        }
+impl Observes {
+    pub fn new(rng:&mut StdRng, params:&Params, actions:&Actions)-> Self{
+        let mut observes:Vec<Observe> =Vec::new();
         for i in 0..params.n{
-            let observe:Observe = Observe::get_observe(rng, params, i);
-            let observed_item = observe.item;
-            if observed_vec[observed_item] == Observed::Notseen {
-                observed_vec[observed_item] = Observed::Seen;
-            }
-            observe_vec.push(Observe{item: observed_item});
+            let observe:Observe = Observe::new(rng, params, i, actions);
+            observes.push(observe);
         }
-        ObserveList { observe_vec: observe_vec, observed_vec: observed_vec }
+        Observes{observes:observes}
     }
 }
 
 pub fn run(params:&Params) ->Qvalue{
     let mut rng = StdRng::seed_from_u64(params.seed);
-    let mut qvalue = Qvalue::new(&mut rng);
+    let mut agent = Agent::new(&mut rng);
     let mut amount_violated = 0.0;
-    let mut amount_compliant = 0.0;
     let mut count_violated = 0;
+    let mut amount_compliant = 0.0;
     let mut count_compliant = 0;
     for i in 0..params.epochs{
-        let action = get_action(&qvalue, &mut rng);
-        update_qvalue(&mut qvalue, &params,&action, &mut rng);
+        let action = agent.get_action(params, &mut rng);
+        agent.update_qvalue(&params,&action, &mut rng);
         if i >= params.epochs / 2 {
             if action == Action::Violated {
-                amount_violated += qvalue.violated_case;
+                amount_violated += agent.qvalue.violated_case;
                 count_violated += 1;            
             } else {
-                amount_compliant += qvalue.compliant_case;
+                amount_compliant += agent.qvalue.compliant_case;
                 count_compliant += 1;        
             }
         }
-        println!("{}:,{:?}",i,qvalue);
+        println!("{}:,{:?}", i, agent.qvalue);
     }
-    let compliant_case:f32 = amount_compliant / count_compliant as f32;
-    let violated_case:f32 = amount_violated / count_violated as f32;
+    let compliant_case:f64 = amount_compliant / count_compliant as f64;
+    let violated_case:f64 = amount_violated / count_violated as f64;
     Qvalue{compliant_case: compliant_case, violated_case: violated_case}
 }
 
-pub fn update_qvalue(qvalue:&mut Qvalue, params:&Params, action:&Action, rng:&mut StdRng){
-    let reward = get_reward(params,action,rng);
-    if action == &Action::Violated {
-        qvalue.violated_case += (reward - qvalue.violated_case) * params.learning_rate;
-    } else {
-        qvalue.compliant_case += (reward - qvalue.compliant_case) * params.learning_rate;
-    }
-}
-
-pub fn get_reward(params:&Params,action:&Action, rng: &mut StdRng) -> f32 {
-    let random_num:f32 = rng.random();
+pub fn get_reward(params:&Params,action:&Action, rng: &mut StdRng) -> f64 {
+    let random_num:f64 = rng.random();
     let reward = if action == &Action::Violated {
         if random_num <= params.detect_p {
             params.gain - params.p_viol
@@ -192,26 +224,6 @@ pub fn get_reward(params:&Params,action:&Action, rng: &mut StdRng) -> f32 {
         0.0
     };
     reward
-}
-
-pub fn get_action(qvalue:&Qvalue, rng: &mut StdRng) -> Action{
-    let greedy_val:f32 = rng.random();
-    let epsilon = 0.3;
-    let action = if greedy_val > 1.0 - epsilon {
-        let random_val:f32 = rng.random();
-        if random_val >= 0.5 {
-            Action::Compliant
-        } else {
-            Action::Violated
-        }
-    } else {
-        if qvalue.compliant_case > qvalue.violated_case {
-            Action::Compliant
-        } else {
-            Action::Violated
-        }
-    };
-    action
 }
 
 pub fn choose_action(qvalue:&Qvalue)->Action {
@@ -232,7 +244,7 @@ mod tests {
         let params = Params::default();
         let mode:Mode = Mode::None;
         assert_eq!(params.n, 10usize);
-        assert_eq!(params.gain, 1.0f32);
+        assert_eq!(params.gain, 1.0f64);
         assert_eq!(mode, Mode::None);
     }
 
@@ -254,4 +266,41 @@ mod tests {
         assert_eq!(action3, Action::Compliant);
         assert!(qvalue1.violated_case < 1.0);
     }
+
+    #[test]
+    fn test_get_actions(){
+        let params = Params::default();
+        let mut rng =StdRng::seed_from_u64(params.seed);
+        let agent1 = Agent::new(&mut rng);
+        let agent2 = Agent::new(&mut rng);
+        let agents = Agents{agents:vec![agent1, agent2]};
+        let actions = agents.get_actions(&params, &mut rng);
+        assert_eq!(actions.actions.len(),2);
+        assert!(actions.actions[0]==Action::Compliant || actions.actions[0]==Action::Violated);
+    }
+    #[test]
+    fn test_get_observe_detectp1(){
+        let mut params = Params::default();
+        params.n = 2;
+        params.detect_p = 1.0;
+        let mut rng = StdRng::seed_from_u64(params.seed);
+        let actions = Actions{actions:vec![Action::Compliant, Action::Violated]};
+        let observe1 = Observe::new(&mut rng, &params, 0, &actions);
+        let observe2 = Observe::new(&mut rng, &params, 1, &actions);
+        assert_eq!(observe1.observe_status, ObserveStatus::See);
+        assert_eq!(observe2.observe_status, ObserveStatus::Notsee);
+    }
+        #[test]
+    fn test_get_observe_detectp0(){
+        let mut params = Params::default();
+        params.n = 2;
+        params.detect_p = 0.0;
+        let mut rng = StdRng::seed_from_u64(params.seed);
+        let actions = Actions{actions:vec![Action::Compliant, Action::Violated]};
+        let observe1 = Observe::new(&mut rng, &params, 0, &actions);
+        let observe2 = Observe::new(&mut rng, &params, 1, &actions);
+        assert_eq!(observe1.observe_status, ObserveStatus::Notsee);
+        assert_eq!(observe2.observe_status, ObserveStatus::Notsee);
+    }
+
 }
