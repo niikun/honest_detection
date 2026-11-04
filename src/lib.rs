@@ -98,14 +98,15 @@ impl Observes {
 
 pub fn run(params:&Params) ->Qvalue{
     let mut rng = StdRng::seed_from_u64(params.seed);
-    let mut agent = Agent::new(&mut rng);
+    let mut agent = Agent::new(0usize,&mut rng);
     let mut amount_violated = 0.0;
     let mut count_violated = 0;
     let mut amount_compliant = 0.0;
     let mut count_compliant = 0;
     for i in 0..params.epochs{
         let action = agent.get_action(params, &mut rng);
-        agent.update_qvalue(&params,&action, &mut rng);
+        let (reward_action, _ ) = get_reward(params, &action, &Reaction::Ignore, &mut rng);
+        agent.update_qvalue(&params,&action, reward_action);
         if i >= params.epochs / 2 {
             if action == Action::Violated {
                 amount_violated += agent.qvalue.violated_case;
@@ -122,9 +123,9 @@ pub fn run(params:&Params) ->Qvalue{
     Qvalue{compliant_case: compliant_case, violated_case: violated_case}
 }
 
-pub fn get_reward(params:&Params,action:&Action, rng: &mut StdRng) -> f64 {
+pub fn get_reward(params:&Params,action:&Action, reaction:&Reaction, rng: &mut StdRng) -> (f64, f64) {
     let random_num:f64 = rng.random();
-    let reward = if action == &Action::Violated {
+    let reward_action = if action == &Action::Violated {
         if random_num <= params.detect_p {
             params.gain - params.p_viol
         } else { 
@@ -133,7 +134,9 @@ pub fn get_reward(params:&Params,action:&Action, rng: &mut StdRng) -> f64 {
     } else {
         0.0
     };
-    reward
+    //未実装
+    let reward_reaction = 0.0;
+    (reward_action, reward_reaction)
 }
 
 pub fn choose_action(qvalue:&Qvalue)->Action {
@@ -181,8 +184,8 @@ mod tests {
     fn test_get_actions(){
         let params = Params::default();
         let mut rng =StdRng::seed_from_u64(params.seed);
-        let agent1 = Agent::new(&mut rng);
-        let agent2 = Agent::new(&mut rng);
+        let agent1 = Agent::new(0, &mut rng);
+        let agent2 = Agent::new(1, &mut rng);
         let agents = Agents{agents:vec![agent1, agent2]};
         let actions = agents.get_actions(&params, &mut rng);
         assert_eq!(actions.actions.len(),2);

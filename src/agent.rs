@@ -1,6 +1,6 @@
 use rand::rngs::StdRng;
 use rand::{RngExt};
-use crate::{Params, Action, Actions, get_reward};
+use crate::{Action, Actions, Observes, ObserveStatus, Params, Reaction, get_reward};
 
 #[derive(Debug, PartialEq)]
 pub struct Qvalue {
@@ -19,24 +19,25 @@ impl Qvalue{
 
 #[derive(Debug)]
 pub struct Qreport {
-    pub report_seen: f64,
-    pub report_notseen: f64,
-    pub ignore_seen: f64,
-    pub ignore_notseen: f64
+    pub report_see: f64,
+    pub report_notsee: f64,
+    pub ignore_see: f64,
+    pub ignore_notsee: f64
 }
 impl Qreport {
     pub fn new(rng:&mut StdRng) -> Self{
         Qreport{
-            report_seen: rng.random(),
-            report_notseen:rng.random(),
-            ignore_seen:rng.random(),
-            ignore_notseen:rng.random()
+            report_see: rng.random(),
+            report_notsee:rng.random(),
+            ignore_see:rng.random(),
+            ignore_notsee:rng.random()
         }
     }
 }
 
 #[derive(Debug)]
 pub struct Agent{
+    pub id: usize,
     pub qvalue: Qvalue,
     pub qreport: Qreport,
     count_report: usize,
@@ -45,10 +46,10 @@ pub struct Agent{
 }
 
 impl Agent {
-    pub fn new(rng: &mut StdRng)  -> Self{
+    pub fn new(id: usize, rng: &mut StdRng)  -> Self{
         let qvalue = Qvalue::new(rng);
         let qreport = Qreport::new(rng);
-        Agent{qvalue:qvalue,qreport:qreport, count_report:0, count_false_report:0, count_ignore:0}
+        Agent{id: id, qvalue:qvalue,qreport:qreport, count_report:0, count_false_report:0, count_ignore:0}
     }
 
     pub fn get_action(&self, params:&Params, rng: &mut StdRng) -> Action{
@@ -69,13 +70,35 @@ impl Agent {
         };
         action
     }
-    pub fn update_qvalue(&mut self, params:&Params, action:&Action, rng:&mut StdRng){
-        let reward = get_reward(params,action,rng);
+    pub fn update_qvalue(&mut self, params:&Params, action:&Action, reward_action:f64){
         if action == &Action::Violated {
-            self.qvalue.violated_case += (reward - self.qvalue.violated_case) * params.learning_rate;
+            self.qvalue.violated_case += (reward_action - self.qvalue.violated_case) * params.learning_rate;
         } else {
-            self.qvalue.compliant_case += (reward - self.qvalue.compliant_case) * params.learning_rate;
+            self.qvalue.compliant_case += (reward_action - self.qvalue.compliant_case) * params.learning_rate;
         }
+    }
+
+    pub fn get_reaction(self, params:&Params, observes:Observes) -> Reaction {
+        let id = self.id;
+        let observe_status = &observes.observes[id].observe_status;
+        let reaction = if &ObserveStatus::See == observe_status {
+            if self.qreport.report_see >= self.qreport.ignore_see {
+                Reaction::Report
+            } else {
+                Reaction::Ignore
+            }
+        } else {
+            if self.qreport.report_notsee >= self.qreport.ignore_notsee {
+                Reaction::Report
+            } else {
+                Reaction::Ignore
+            }
+        };
+        reaction
+    }
+
+    pub fn update_qreport(&mut self, params:&Params, reaction:&Reaction, reward_reaction:f64, observe:&ObserveStatus) {
+        
     }
 
     pub fn report(&mut self) {
