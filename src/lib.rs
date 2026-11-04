@@ -40,6 +40,16 @@ pub struct Actions {
     actions: Vec<Action>
 }
 
+#[derive(Debug,PartialEq, Copy, Clone)]
+pub enum Reaction { 
+    Report,
+    Ignore
+} 
+pub struct Reactions {
+    reactions: Vec<Reaction>
+
+}
+
 #[derive(Debug, PartialEq)]
 pub enum ObserveStatus {
     See,
