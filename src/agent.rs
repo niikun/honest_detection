@@ -1,6 +1,6 @@
 use rand::rngs::StdRng;
 use rand::{RngExt};
-use crate::{Action, Actions, Observes, ObserveStatus, Params, Reaction, get_reward};
+use crate::{Action, Actions, Observes, ObserveStatus, Params, Reaction, Reactions, get_reward};
 
 #[derive(Debug, PartialEq)]
 pub struct Qvalue {
@@ -78,10 +78,18 @@ impl Agent {
         }
     }
 
-    pub fn get_reaction(self, params:&Params, observes:Observes) -> Reaction {
+    pub fn get_reaction(&self, params:&Params, observes:&Observes, rng:&mut StdRng) -> Reaction {
         let id = self.id;
         let observe_status = &observes.observes[id].observe_status;
-        let reaction = if &ObserveStatus::See == observe_status {
+        let greedy_val:f64 = rng.random();
+        let reaction = if greedy_val > 1.0 - params.epsilon {
+            let random_val:f64 = rng.random();
+            if random_val >= 0.5 {
+                Reaction::Report
+            } else {
+                Reaction::Ignore    
+            } 
+        } else if &ObserveStatus::See == observe_status {
             if self.qreport.report_see >= self.qreport.ignore_see {
                 Reaction::Report
             } else {
@@ -97,8 +105,27 @@ impl Agent {
         reaction
     }
 
-    pub fn update_qreport(&mut self, params:&Params, reaction:&Reaction, reward_reaction:f64, observe:&ObserveStatus) {
-        
+    pub fn update_qreport(&mut self, params:&Params, reaction:&Reaction, reward_reaction:f64, observes:&Observes) {
+        let id = self.id;
+        let observe_status = &observes.observes.iter()
+                                                .find(|o| o.observer == id).unwrap()
+                                                .observe_status;
+        match observe_status {
+            ObserveStatus::See => {
+                if reaction == &Reaction::Report {
+                    self.qreport.report_see += (reward_reaction - self.qreport.report_see) * params.learning_rate;
+                } else {
+                    self.qreport.ignore_see += (reward_reaction - self.qreport.ignore_see) * params.learning_rate;
+                }
+            },
+            ObserveStatus::Notsee => {
+                if reaction == &Reaction::Report {
+                    self.qreport.report_notsee += (reward_reaction - self.qreport.report_notsee) * params.learning_rate;
+                } else {
+                    self.qreport.ignore_notsee += (reward_reaction - self.qreport.ignore_notsee) * params.learning_rate;
+                }
+            }
+        }
     }
 
     pub fn report(&mut self) {
@@ -138,4 +165,12 @@ impl Agents {
                     .collect();
         Actions{actions:actions}
     }
+
+    pub fn get_reactions(&self, params:&Params, observes:&Observes, rng:&mut StdRng) -> Reactions {
+        let reactions:Vec<Reaction> = self.agents.iter()
+                    .map(|agent| agent.get_reaction(params, observes, rng))
+                    .collect();
+        Reactions{reactions:reactions}
+    }
 }
+

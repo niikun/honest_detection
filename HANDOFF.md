@@ -1,6 +1,6 @@
 # honest_detection 学習ハンドオフ
 
-作成: 2026-10-28 / 最終更新: 2026-11-04
+作成: 2026-10-28 / 最終更新: 2026-11-05
 目的: 検知共有×評判ネットワークのシミュレーションを**一から作り**、Rust（型・所有権・テスト）と設計力を身につける。最終的に Axum API + Lovable(React) まで（期限 2026-12-31）。
 関連: 秘書ノート `topics/verifiable-detection-reward-network.md`（構想）/ `topics/honest-detection-rust-api-roadmap.md`（ロードマップ）
 
@@ -53,7 +53,7 @@
   - テスト: `test_get_observe_detectp1` / `detectp0`（n=2、守る/違反を固定して結果が確定）。`test_get_actions` の2つ目の assert は常に真で何も確かめていない（任意で直す）
   - 済: `Agent` を `src/agent.rs` に分離（`Qvalue`・`Qreport`・`Agent`・`Agents`）。`lib.rs` は `mod agent;` + `use agent::{...}`。`count_*` は非公開にして、`report` / `false_report` / `ignore`（+1）と読み取り用 `count_report()` などで操作。`ignore` へのメソッド名変更も済み
   - 小さな修正（任意）: `n >= 2` を条件にする書き方、`#[test]` のインデントのずれ、`lib.rs` の未使用 import（`Agents`・`Qreport`。③で使えば消える）
-- 2026-11-04: **ステップ4 ③ 着手**（未コミット。`cargo test` 5件成功）
+- 2026-11-04: **ステップ4 ③ 着手**（`ac6e6ce`・`e8fdbfe` でコミット済み。`cargo test` 5件成功）
   - 済: `Reaction { Report, Ignore }` / `Reactions { Vec<Reaction> }`（`Action`/`Actions` と同じ形）。`report_p`（通報確率の固定値）を入れかけたが削除する判断 → 通報は `qreport` で学習させる（固定確率だと報酬設計を変えても結果が変わらない）
   - 済: `Qreport` のフィールド名を `report_see` / `report_notsee` / `ignore_see` / `ignore_notsee` に統一。`update_qvalue` は rng ではなく報酬の値（`reward_action`）を受け取る形に（報酬の決め方と更新を分離）。`get_reward` は `(reward_action, reward_reaction)` を返す（`reward_reaction` は未実装で 0.0）
   - 書きかけ: `Agent::get_reaction`（`qreport` を状態で引く。良い）、`Agent::update_qreport`（中身なし）。`Agent` に `id` を追加
@@ -67,12 +67,20 @@
   - 呼ぶ場所: `apps/server/src/runner/` か `packages/ledger`。`packages/sim` は純粋関数（I/O禁止）なので呼ばない。街ごとの違いは台帳と Observation（`townNews`）だけに閉じ込める
   - API の最初の口: ①通報を受け取る ②住民ごとの評判を返す。最初はローカル別ポート。AWS（`infra/` の CDK）は最後
   - 未決: 評判を住民の行動に影響させるか、画面表示だけか。どの出来事を API に送るか（違反の目撃・通報など）
+- 2026-11-05: **③-1 完了、③-2 ほぼ完了**（未コミット。`cargo test` 6件成功）
+  - ③-1: `get_reaction(&self, params, &Observes, rng)` に修正（所有権の問題を解消）。ε-greedy を入れた（探索 → See → Notsee の `if / else if / else`）。`Agents::get_reactions -> Reactions`（`get_actions` と同じ形、`rng` をクロージャに渡す）
+  - テスト `test_get_reactions`: n=4、`epsilon = 0.0`、Q値を1か所ずつ 1.0、**状態を4人分手で固定**（最初は `Observes::new` の乱数任せで偶然通っていた → 修正）。任意: 比べる相手も 0.0 と明示すると初期化方法に依存しない
+  - ③-2: `update_qreport` を実装。状態で `match` → 反応で4フィールドに振り分け（`&Reaction` と `Reaction` の比較エラーは `&Reaction::Report` で解消）。自分の状態は `observes.iter().find(|o| o.observer == id).unwrap()` で探す形（`get_reaction` は `observes[id]` の添字。どちらかに揃えるとよい）
+  - 指摘3（状態の渡し方）は「`Observes` + `id`」で揃える方向で決着
+  - 任意: `match (状態, 反応)` のタプル match にすると4通りが表の形で並び、書き忘れをコンパイラが検出（Book 6.2 / 19章）
+  - 未確認: テストの `epsilon = 0.0` を外すと失敗するシードがあるか（ε-greedy が効いている確認）
+  - 自分の言葉で説明（ステップ4の締めで `Note.md` に）: `self` / `Observes` を値で受けると、なぜ2人目の呼び出しでエラーになるか（所有権・move・借用）
 - 次の一歩（ステップ4 ③）:
-  1. 上の問い（所有権）に答え、`get_reaction` の引数を `&self` と自分の状態に直す。ε-greedy を入れる
-  2. `update_qreport` を書く（`update_qvalue` と同じ式。状態×反応で4つのどれを更新するか）
-  3. 報酬を決める。none 条件は通報者に `-COST` のみ。違反者の罰は「通報されたか」で決まる（指摘4）。偽通報（Notsee で通報）の扱いと `SPAM_P` の定義もここで決める
-  4. N体のラウンドを別の関数にする（①全員が行動 → ②見る → ③通報/無視 → 報酬と更新）。1体用の `run` は触らない
-  5. テスト: none 条件で通報がほぼゼロになること
+  1. `update_qreport` のテストを書く: 状態と反応を固定、報酬 1.0 を渡し、狙ったフィールドだけ変わり他の3つは変わらないことを確認
+  2. 報酬を決める（**山場**）。none 条件は通報者に `-COST` のみ。違反者の罰は「通報されたか」で決まる（11/4 の指摘4: `action` と `reaction` を並べて渡す今の `get_reward` の形で計算できるか？）。偽通報（Notsee で通報）の扱いと `SPAM_P` の定義もここで決める
+  3. N体のラウンドを別の関数にする（①全員が行動 → ②見る → ③通報/無視 → 報酬と更新）。1体用の `run` は触らない
+  4. テスト: none 条件で通報がほぼゼロになること
+- 見積もり（11/5 時点）: v0.1（ステップ5完了）まであと5〜8回。11/12〜12/10 は応用編2と並走。年内の範囲（v0.1＋API の最初の口まで、など）はステップ4終了時に見直す
 
 ## 参考実装（見るのは各ステップを書き終えてから）
 
@@ -180,4 +188,4 @@ N人（N=10）が毎ラウンド「守る/違反する」を選ぶ。違反は�
 - ~~シードを `Params` に入れるか~~ → `Params` に入れた（ステップ3）
 - `Params::default()` の `p_viol` が 0.0（モデルの P_VIOL=3.0 と違う）。`default` はモデルの値かテスト用の値か、ステップ5までに決める
 - 乱数: `rand` 0.10 の API（`RngExt`）。`StdRng` + `SeedableRng::seed_from_u64` で固定済み（2026-10-30）
-- SPAM_P の正確な定義（用語集参照。**ステップ4 ③-3 で決める**）
+- SPAM_P の正確な定義（用語集参照。**ステップ4 ③ の「報酬を決める」で決める**）

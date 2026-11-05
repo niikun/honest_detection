@@ -55,11 +55,11 @@ pub enum ObserveStatus {
     See,
     Notsee
 }
-
+#[derive(Debug)]
 pub struct Observe {
-    observer:usize,
-    observed:usize,
-    observe_status:ObserveStatus
+    pub observer:usize,
+    pub observed:usize,
+    pub observe_status:ObserveStatus
 }
 
 impl Observe {
@@ -214,6 +214,37 @@ mod tests {
         let observe2 = Observe::new(&mut rng, &params, 1, &actions);
         assert_eq!(observe1.observe_status, ObserveStatus::Notsee);
         assert_eq!(observe2.observe_status, ObserveStatus::Notsee);
+    }
+
+    #[test]
+    fn test_get_reactions(){
+        let mut params = Params::default();
+        params.n = 4;
+        params.epsilon = 0.0;
+        let mut rng = StdRng::seed_from_u64(params.seed);
+        let mut agent1 = Agent::new(0, &mut rng);
+        let mut agent2 = Agent::new(1, &mut rng);
+        let mut agent3 = Agent::new(2, &mut rng);
+        let mut agent4 = Agent::new(3, &mut rng);
+        agent1.qreport.report_see = 1.0;
+        agent2.qreport.ignore_see = 1.0;
+        agent3.qreport.report_notsee = 1.0;
+        agent4.qreport.ignore_notsee = 1.0;
+        let agents = Agents{agents:vec![agent1, agent2, agent3, agent4]};
+        let actions = Actions{
+            actions:vec![Action::Violated, Action::Violated, Action::Compliant, Action::Compliant]
+        };
+        let mut observes = Observes::new(&mut rng, &params, &actions);
+        observes.observes[0].observe_status = ObserveStatus::See;
+        observes.observes[1].observe_status = ObserveStatus::See;
+        observes.observes[2].observe_status = ObserveStatus::Notsee;
+        observes.observes[3].observe_status = ObserveStatus::Notsee;
+        let reactions = agents.get_reactions(&params, &observes, &mut rng);
+        assert_eq!(reactions.reactions.len(), 4);
+        assert_eq!(reactions.reactions[0], Reaction::Report);
+        assert_eq!(reactions.reactions[1], Reaction::Ignore);
+        assert_eq!(reactions.reactions[2], Reaction::Report);
+        assert_eq!(reactions.reactions[3], Reaction::Ignore);
     }
 
 }
