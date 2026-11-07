@@ -77,15 +77,18 @@
   - 任意: `match (状態, 反応)` のタプル match にすると4通りが表の形で並び、書き忘れをコンパイラが検出（Book 6.2 / 19章）
   - 未確認: テストの `epsilon = 0.0` を外すと失敗するシードがあるか（ε-greedy が効いている確認）
   - 自分の言葉で説明（ステップ4の締めで `Note.md` に）: `self` / `Observes` を値で受けると、なぜ2人目の呼び出しでエラーになるか（所有権・move・借用）
-- 2026-11-07: **③-2 `update_qreport` のテスト完了、報酬設計の途中**（`cargo test` 7件成功。未コミットあり）
+- 2026-11-07: **③-2 `update_qreport` のテスト完了、報酬設計（none / retro）完了**（`cargo test` 8件成功。`src/lib.rs` は未コミット）
   - 済: `test_update_qreport` を4通り（状態2×反応2）に拡張。失敗の原因は `agent` の使い回し → ループ内で毎回作り直して解決
   - 決まったこと: ①none は通報者に `-COST` のみ（嘘への罰 `P_FALSE` は retro だけ。偽通報かどうかで none の報酬は変えない）②違反者の罰 `P_VIOL` は通報者が何人でも1回だけ（「j が通報された」＝ j を `See` した人のうち1人でも `Report`。`any` で bool）③「通報されたか」の bool は関数の**外**で計算して渡す（retro と場合分けしやすい）④1体用 `get_reward` / `run` は触らず、N体用の新しい関数を別に作る（自由関数。`Agent` のメソッドにしない: `self` を使わないため）
-  - 書きかけ: `get_report_reward(params, observers: Vec<bool>, observeds: Vec<bool>) -> Vec<(f64, f64)>`（コンパイルは通る）
+  - 済（報酬）: `ReportState { Ignore, ReportTrue, ReportFalse }` / `ReportStates`（i番目＝i番の通報状態）。`Params` に `r_true`（1.0）/`p_false`（1.0）を追加。`get_report_reward(params, &ReportStates, &Observes) -> Vec<(f64, f64)>`（戻りは（通報者の報酬, 違反者の罰）、i番目＝i番）。通報者は none が `-cost`、retro が本物なら `-cost + r_true`、偽物なら `-cost - p_false`。違反者の罰は「j を `See` した人の誰かが `ReportTrue`」のとき `-p_viol` を1回だけ（`observed` に印を付ける形。印は被害者の添字）
+  - テスト `test_get_report_reward`: n=3、none と retro の両方（期待値は mode ごとに紙で計算して書く）。`default()` の `p_viol` を 3.0（モデルの値）にしたため、`test_run` 側で `params1.p_viol = 0.0` を明示（「罰なし」の基準）。これで未決の `default` 問題は決着
+  - つまずきと解決: ①`observed_rewards` を `states[j]`（j自身の通報状態）と並べていた → 「j が通報されたか」は `observed[j]` で決まるので `match` は不要に ②印を付ける条件に「見た人が通報した」が抜けていた → `observes` と `states` を `zip` ③テストが `p_viol=0` で罰を検出できなかった
+  - 未実装・未決: `Mode::Immediate`（R_IMM）の分岐は 0.0 のまま（else と同じ）。`SPAM_P` の定義は未決。浮動小数点の `assert_eq!` は今は通るが、値が増えたら誤差付き比較を調べる
 - 次の一歩（ステップ4 ③）:
-  1. `get_report_reward` を直す: ①最後の `zip` が `observed_rewards` を2回並べていて `observers_reward` が未使用 ②`report_reward = 3.0` が直書きで未使用（`r_true` / `p_false` を `Params` に）③`observers: Vec<bool>` では retro の「本物/偽物」を区別できない → 各エージェントについて「通報していない / 通報して本物 / 通報して偽物」の3通りを持てる型にする（問いの答えを自分で出す）④戻り値の順序（通報者の報酬, 違反者の罰）を決めてコメントに残す。`SPAM_P` の定義もここで決める
-  2. 「j が通報されたか」の bool を作る（`Observes` と `Reactions` を `zip` して、`observed == j && See && Report` の `any`。`ObserveStatus::See`、`*r == Reaction::Report`）。i 番目の `Observe` ＝ i 番の見た側という順序の前提をテストかコメントで残す
-  3. N体のラウンドを別の関数にする（①全員が行動 → ②見る → ③通報/無視 → 報酬と更新）。1体用の `run` は触らない
-  4. テスト: none 条件で通報がほぼゼロになること
+  1. `Reactions` と `Observes` から `ReportStates` を作る関数（Report × See → `ReportTrue`、Report × Notsee → `ReportFalse`、Ignore → `Ignore`）。i 番目の `Observe` ＝ i 番の見た側、という順序の前提をテストかコメントで残す。小さなテスト（n=3 の例）から
+  2. N体のラウンドを別の関数にする（①全員が行動 → ②見る → ③通報/無視 → `ReportStates` → `get_report_reward` → 各エージェントの Q 値を更新）。違反者の報酬 `gain` も忘れずに（違反＝`gain`、通報されたら `-p_viol`）。1体用の `run` は触らない
+  3. テスト: none 条件で通報がほぼゼロになること
+  4. 余力があれば `Mode::Immediate`（R_IMM）の分岐を足す（ステップ5の3条件比較で必要）
 - amnesia との接続: 違反・通報・評判は Twin Towns にまだない。「この街で何を違反とするか」は未決（v0.1 の後で検討）
 - 見積もり（11/5 時点）: v0.1（ステップ5完了）まであと5〜8回。11/12〜12/10 は応用編2と並走。年内の範囲（v0.1＋API の最初の口まで、など）はステップ4終了時に見直す
 
@@ -193,6 +196,6 @@ N人（N=10）が毎ラウンド「守る/違反する」を選ぶ。違反は�
 
 - ~~`mode` を `Params` に入れるか~~ → 外に出す（2026-10-28 決定）
 - ~~シードを `Params` に入れるか~~ → `Params` に入れた（ステップ3）
-- `Params::default()` の `p_viol` が 0.0（モデルの P_VIOL=3.0 と違う）。`default` はモデルの値かテスト用の値か、ステップ5までに決める
+- ~~`Params::default()` の `p_viol`~~ → モデルの値（3.0）にした。`test_run` が「罰なし」を使う箇所は `p_viol = 0.0` を明示（2026-11-07）
 - 乱数: `rand` 0.10 の API（`RngExt`）。`StdRng` + `SeedableRng::seed_from_u64` で固定済み（2026-10-30）
 - SPAM_P の正確な定義（用語集参照。**ステップ4 ③ の「報酬を決める」で決める**）

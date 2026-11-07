@@ -16,6 +16,8 @@ pub struct Params {
     epochs:usize,
     epsilon:f64,
     mode:Mode,
+    r_true: f64,
+    p_false: f64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -27,7 +29,7 @@ pub enum Mode {
 
 impl Default for Params { 
     fn default()->Self {
-        Self { n: 10, gain: 1.0, harm: 0.3, p_viol:0.0, detect_p:0.5, cost: 0.2, learning_rate:0.1,seed:64,epochs:1000, epsilon:0.3, mode:Mode::None}
+        Self { n: 10, gain: 1.0, harm: 0.3, p_viol:3.0, detect_p:0.5, cost: 0.2, learning_rate:0.1,seed:64,epochs:1000, epsilon:0.3, mode:Mode::None, r_true:1.0, p_false:1.0}
     }
 }
 
@@ -49,6 +51,17 @@ pub enum Reaction {
 pub struct Reactions {
     reactions: Vec<Reaction>
 
+}
+
+#[derive(Debug,Clone,PartialEq)]
+pub enum ReportState {
+    Ignore,
+    ReportTrue,
+    ReportFalse
+}
+
+pub struct ReportStates {
+    states:Vec<ReportState>
 }
 
 #[derive(Debug, PartialEq)]
@@ -140,23 +153,39 @@ pub fn get_reward(params:&Params,action:&Action, reaction:&Reaction, rng: &mut S
     (reward_action, reward_reaction)
 }
 
-pub fn get_report_reward(params:&Params, observers:Vec<bool>, observeds:Vec<bool>) ->Vec<(f64, f64)>{
-    let mut report_reward = 0.0;
-    if params.mode == Mode::Retro{
-        report_reward = 3.0;
+pub fn get_report_reward(params:&Params, report_states:&ReportStates, observes:&Observes) ->Vec<(f64, f64)>{
+    let reward_report_true = if params.mode == Mode::Retro{
+        params.r_true
+    } else if params.mode == Mode::Immediate { 
+        0.0 
+    } else {
+        0.0
+    };
+    let penalty_report_false: f64 = if params.mode == Mode::Retro{
+        params.p_false
+    } else {0.0};
+
+    let observer_rewards:Vec<f64> = report_states.states.iter()
+            .map(|state:&ReportState|{
+        match state {
+            ReportState::Ignore => 0.0,
+            ReportState::ReportTrue => - params.cost + reward_report_true,
+            ReportState::ReportFalse => - params.cost- penalty_report_false
+        }
+    }).collect();
+    let mut observed = Vec::new();
+    for _ in 0..params.n {
+        observed.push(false);
     }
-    let observer_rewards:Vec<f64> = observers.iter().map(|b|{
-        match b {
-            &true => - params.cost,
-            &false => 0.0
+    for (o, r) in observes.observes.iter().zip(report_states.states.iter()){
+        if o.observe_status == ObserveStatus::See && r == &ReportState::ReportTrue{
+            observed[o.observed] = true;
         }
-    }).collect();
-    let observed_rewards:Vec<f64> = observeds.iter().map(|b| {
-        match b {
-            &true => -params.p_viol,
-            &false => 0.0
-        }
-    }).collect();
+    }
+    let observed_rewards:Vec<f64> = observed.iter()
+            .map(|o| {
+                if *o { - params.p_viol } else { 0.0 }
+            }).collect::<Vec<f64>>();
     observer_rewards.iter().zip(observed_rewards.iter())
     .map(|(observer,observed)| (*observer,*observed))
     .collect()
@@ -186,9 +215,10 @@ mod tests {
 
     #[test]
     fn test_run() {
-        let params1 = Params::default();
+        let mut params1 = Params::default();
         let mut params2:Params = params1.clone();
         let mut params3:Params = params1.clone();
+        params1.p_viol = 0.0;
         params2.p_viol = 1.5;
         params3.p_viol = 2.5;
         let qvalue1 = run(&params1);
@@ -332,6 +362,37 @@ mod tests {
                 }
             }
         }
-        
+    }
+
+    #[test]
+    fn test_get_report_reward(){
+        let mut params = Params::default();
+        params.n = 3;
+        let modes = [Mode::Retro, Mode::None];
+        for mode in modes{
+            params.mode = mode;
+            let report_states = ReportStates {
+                states:vec![ReportState::ReportTrue, ReportState::Ignore, ReportState::ReportFalse]
+            };
+            let observes = Observes{
+                observes:vec![
+                    Observe{observer:0,observed:2, observe_status:ObserveStatus::See},
+                    Observe{observer:1,observed:2,observe_status:ObserveStatus::Notsee},
+                    Observe{observer:2,observed:0, observe_status:ObserveStatus::Notsee}
+                ]
+            };
+            let rewards = get_report_reward(&params, &report_states, &observes) ;
+            if params.mode == Mode::Retro{
+                assert_eq!(rewards[0],(params.r_true - params.cost, 0.0));
+                assert_eq!(rewards[1],(0.0, 0.0));
+                assert_eq!(rewards[2],(-params.p_false - params.cost, -params.p_viol));
+            } else {
+                assert_eq!(rewards[0],(- params.cost, 0.0));
+                assert_eq!(rewards[1],(0.0, 0.0));
+                assert_eq!(rewards[2],(- params.cost, -params.p_viol));
+            }
+            
+        }
+       
     }
 }
