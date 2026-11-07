@@ -1,6 +1,6 @@
 # honest_detection 学習ハンドオフ
 
-作成: 2026-10-28 / 最終更新: 2026-11-06
+作成: 2026-10-28 / 最終更新: 2026-11-07
 目的: 検知共有×評判ネットワークのシミュレーションを**一から作り**、Rust（型・所有権・テスト）と設計力を身につける。最終的に Axum API + Lovable(React) まで（期限 2026-12-31）。
 関連: 秘書ノート `topics/verifiable-detection-reward-network.md`（構想）/ `topics/honest-detection-rust-api-roadmap.md`（ロードマップ）
 
@@ -67,7 +67,7 @@
   - 呼ぶ場所: `apps/server/src/runner/` か `packages/ledger`。`packages/sim` は純粋関数（I/O禁止）なので呼ばない。街ごとの違いは台帳と Observation（`townNews`）だけに閉じ込める
   - API の最初の口: ①通報を受け取る ②住民ごとの評判を返す。最初はローカル別ポート。AWS（`infra/` の CDK）は最後
   - 未決: 評判を住民の行動に影響させるか、画面表示だけか。どの出来事を API に送るか（違反の目撃・通報など）
-  - 2026-11-06 確認: ローカルの場所は `/home/kawata/project/2026gw-amnesia`（別のPCでは場所が違う可能性あり）。既存サーバーは Fastify で 8787 番、画面は 5173 番 → Axum は別ポートにする
+  - 2026-11-06 確認: amnesia の場所は PC ごとに違う（メイン: `~/project/2026gw-amnesia`、サブ: `/home/kawata/project/2026gw-amnesia`）。既存サーバーは Fastify で 8787 番、画面は 5173 番 → Axum は別ポートにする
   - 2026-11-06 確認: Twin Towns には「違反」「通報」「評判」にあたるものがまだない（`docs/`・`packages/sim`・`packages/ledger`・`apps` を検索して該当なし）。**API を作る前に「この街で何を違反とするか」を決める必要がある**（お金の移動・土地・投票など、住民の実際の行動のどれに対応させるか）。台帳に足すなら `LedgerEvent`（`tick` と `type` を持つ形）に合わせる。検討は v0.1 の後でよい
 - 2026-11-05: **③-1 完了、③-2 ほぼ完了**（未コミット。`cargo test` 6件成功）
   - ③-1: `get_reaction(&self, params, &Observes, rng)` に修正（所有権の問題を解消）。ε-greedy を入れた（探索 → See → Notsee の `if / else if / else`）。`Agents::get_reactions -> Reactions`（`get_actions` と同じ形、`rng` をクロージャに渡す）
@@ -77,11 +77,16 @@
   - 任意: `match (状態, 反応)` のタプル match にすると4通りが表の形で並び、書き忘れをコンパイラが検出（Book 6.2 / 19章）
   - 未確認: テストの `epsilon = 0.0` を外すと失敗するシードがあるか（ε-greedy が効いている確認）
   - 自分の言葉で説明（ステップ4の締めで `Note.md` に）: `self` / `Observes` を値で受けると、なぜ2人目の呼び出しでエラーになるか（所有権・move・借用）
+- 2026-11-07: **③-2 `update_qreport` のテスト完了、報酬設計の途中**（`cargo test` 7件成功。未コミットあり）
+  - 済: `test_update_qreport` を4通り（状態2×反応2）に拡張。失敗の原因は `agent` の使い回し → ループ内で毎回作り直して解決
+  - 決まったこと: ①none は通報者に `-COST` のみ（嘘への罰 `P_FALSE` は retro だけ。偽通報かどうかで none の報酬は変えない）②違反者の罰 `P_VIOL` は通報者が何人でも1回だけ（「j が通報された」＝ j を `See` した人のうち1人でも `Report`。`any` で bool）③「通報されたか」の bool は関数の**外**で計算して渡す（retro と場合分けしやすい）④1体用 `get_reward` / `run` は触らず、N体用の新しい関数を別に作る（自由関数。`Agent` のメソッドにしない: `self` を使わないため）
+  - 書きかけ: `get_report_reward(params, observers: Vec<bool>, observeds: Vec<bool>) -> Vec<(f64, f64)>`（コンパイルは通る）
 - 次の一歩（ステップ4 ③）:
-  1. `update_qreport` のテストを書く: 状態と反応を固定、報酬 1.0 を渡し、狙ったフィールドだけ変わり他の3つは変わらないことを確認
-  2. 報酬を決める（**山場**）。none 条件は通報者に `-COST` のみ。違反者の罰は「通報されたか」で決まる（11/4 の指摘4: `action` と `reaction` を並べて渡す今の `get_reward` の形で計算できるか？）。偽通報（Notsee で通報）の扱いと `SPAM_P` の定義もここで決める
+  1. `get_report_reward` を直す: ①最後の `zip` が `observed_rewards` を2回並べていて `observers_reward` が未使用 ②`report_reward = 3.0` が直書きで未使用（`r_true` / `p_false` を `Params` に）③`observers: Vec<bool>` では retro の「本物/偽物」を区別できない → 各エージェントについて「通報していない / 通報して本物 / 通報して偽物」の3通りを持てる型にする（問いの答えを自分で出す）④戻り値の順序（通報者の報酬, 違反者の罰）を決めてコメントに残す。`SPAM_P` の定義もここで決める
+  2. 「j が通報されたか」の bool を作る（`Observes` と `Reactions` を `zip` して、`observed == j && See && Report` の `any`。`ObserveStatus::See`、`*r == Reaction::Report`）。i 番目の `Observe` ＝ i 番の見た側という順序の前提をテストかコメントで残す
   3. N体のラウンドを別の関数にする（①全員が行動 → ②見る → ③通報/無視 → 報酬と更新）。1体用の `run` は触らない
   4. テスト: none 条件で通報がほぼゼロになること
+- amnesia との接続: 違反・通報・評判は Twin Towns にまだない。「この街で何を違反とするか」は未決（v0.1 の後で検討）
 - 見積もり（11/5 時点）: v0.1（ステップ5完了）まであと5〜8回。11/12〜12/10 は応用編2と並走。年内の範囲（v0.1＋API の最初の口まで、など）はステップ4終了時に見直す
 
 ## 参考実装（見るのは各ステップを書き終えてから）

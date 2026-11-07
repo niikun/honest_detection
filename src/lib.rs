@@ -3,7 +3,7 @@ use rand::{RngExt, SeedableRng};
 mod agent;
 use agent::{Agent,Agents, Qvalue, Qreport};
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct Params {
     n:usize,
     gain:f64, //違反時の報酬
@@ -14,10 +14,11 @@ pub struct Params {
     learning_rate:f64,
     seed:u64,
     epochs:usize,
-    epsilon:f64
+    epsilon:f64,
+    mode:Mode,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Mode {
     None,
     Immediate,
@@ -26,7 +27,7 @@ pub enum Mode {
 
 impl Default for Params { 
     fn default()->Self {
-        Self { n: 10, gain: 1.0, harm: 0.3, p_viol:0.0, detect_p:0.5, cost: 0.2, learning_rate:0.1,seed:64,epochs:1000, epsilon:0.3}
+        Self { n: 10, gain: 1.0, harm: 0.3, p_viol:0.0, detect_p:0.5, cost: 0.2, learning_rate:0.1,seed:64,epochs:1000, epsilon:0.3, mode:Mode::None}
     }
 }
 
@@ -116,7 +117,7 @@ pub fn run(params:&Params) ->Qvalue{
                 count_compliant += 1;        
             }
         }
-        println!("{}:,{:?}", i, agent.qvalue);
+        // println!("{}:,{:?}", i, agent.qvalue);
     }
     let compliant_case:f64 = amount_compliant / count_compliant as f64;
     let violated_case:f64 = amount_violated / count_violated as f64;
@@ -137,6 +138,28 @@ pub fn get_reward(params:&Params,action:&Action, reaction:&Reaction, rng: &mut S
     //未実装
     let reward_reaction = 0.0;
     (reward_action, reward_reaction)
+}
+
+pub fn get_report_reward(params:&Params, observers:Vec<bool>, observeds:Vec<bool>) ->Vec<(f64, f64)>{
+    let mut report_reward = 0.0;
+    if params.mode == Mode::Retro{
+        report_reward = 3.0;
+    }
+    let observer_rewards:Vec<f64> = observers.iter().map(|b|{
+        match b {
+            &true => - params.cost,
+            &false => 0.0
+        }
+    }).collect();
+    let observed_rewards:Vec<f64> = observeds.iter().map(|b| {
+        match b {
+            &true => -params.p_viol,
+            &false => 0.0
+        }
+    }).collect();
+    observer_rewards.iter().zip(observed_rewards.iter())
+    .map(|(observer,observed)| (*observer,*observed))
+    .collect()
 }
 
 pub fn choose_action(qvalue:&Qvalue)->Action {
@@ -249,26 +272,66 @@ mod tests {
 
     #[test]
     fn test_update_qreport(){
-        let mut agent = Agent::new(0, &mut StdRng::seed_from_u64(64));
-        agent.qreport.report_see = 0.0;
-        agent.qreport.ignore_see = 0.0;
-        agent.qreport.report_notsee = 0.0;
-        agent.qreport.ignore_notsee = 0.0;    
         let mut params = Params::default();
         params.learning_rate = 0.1;
         params.n = 2;
-        let observes = Observes{observes:vec![
+        let observes1 = Observes{observes:vec![
             Observe{observer:0, observed:1, observe_status:ObserveStatus::See},
             Observe{observer:1, observed:0, observe_status:ObserveStatus::Notsee}
         ]};
+        let observes2: Observes = Observes {observes: vec![
+            Observe{observer:0, observed:1, observe_status:ObserveStatus::Notsee},
+            Observe{observer:1, observed:0, observe_status:ObserveStatus::Notsee}
+        ]};
+        let observes_vec = vec![observes1, observes2];
         let mut rng = StdRng::seed_from_u64(params.seed);
-        let actions = Actions{actions:vec![Action::Compliant, Action::Violated]};
         let reactions = vec![Reaction::Report, Reaction::Ignore];
-        agent.update_qreport(&params, &reactions[0], 1.0, &observes);
-        let qreport = &agent.qreport;
-        assert_eq!(qreport.report_see, 0.1);
-        assert_eq!(qreport.ignore_see, 0.0);
-        assert_eq!(qreport.report_notsee, 0.0);
-        assert_eq!(qreport.ignore_notsee, 0.0);   
+        for observes_item in observes_vec{
+            for reaction in &reactions{
+                let mut agent = Agent::new(0, &mut StdRng::seed_from_u64(64));
+                agent.qreport.report_see = 0.0;
+                agent.qreport.ignore_see = 0.0;
+                agent.qreport.report_notsee = 0.0;
+                agent.qreport.ignore_notsee = 0.0;    
+                agent.update_qreport(&params, &reaction, 1.0, &observes_item);
+                let qreport = &agent.qreport;
+                match observes_item.observes[0].observe_status{
+                    ObserveStatus::See => {
+                        match reaction {
+                            Reaction::Report =>{
+                                assert_eq!(qreport.report_see, 0.1);
+                                assert_eq!(qreport.ignore_see, 0.0);
+                                assert_eq!(qreport.report_notsee, 0.0);
+                                assert_eq!(qreport.ignore_notsee, 0.0);   
+                            },
+                            Reaction::Ignore => {
+                                assert_eq!(qreport.report_see, 0.0);
+                                assert_eq!(qreport.ignore_see, 0.1);
+                                assert_eq!(qreport.report_notsee, 0.0);
+                                assert_eq!(qreport.ignore_notsee, 0.0); 
+                            }
+                        }
+                    },
+                    ObserveStatus::Notsee => {
+                        match reaction {
+                            Reaction::Report =>{
+                                assert_eq!(qreport.report_see, 0.0);
+                                assert_eq!(qreport.ignore_see, 0.0);
+                                assert_eq!(qreport.report_notsee, 0.1);
+                                assert_eq!(qreport.ignore_notsee, 0.0); 
+                            },
+                            Reaction::Ignore => {
+                                assert_eq!(qreport.report_see, 0.0);
+                                assert_eq!(qreport.ignore_see, 0.0);
+                                assert_eq!(qreport.report_notsee, 0.0);
+                                assert_eq!(qreport.ignore_notsee, 0.1); 
+                            }
+                        }
+
+                    }
+                }
+            }
+        }
+        
     }
 }
