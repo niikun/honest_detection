@@ -6,11 +6,11 @@ use agent::{Agent,Agents, Qvalue, Qreport};
 #[derive(Debug, Copy, Clone)]
 pub struct Params {
     n:usize,
-    gain:f64,
-    harm:f64,
-    p_viol:f64,
-    detect_p:f64,
-    cost:f64,
+    gain:f64, //違反時の報酬
+    harm:f64, //違反者から被る損害
+    p_viol:f64, //違反時の罰則
+    detect_p:f64,  //違反の検知確率
+    cost:f64,  //報告のコスト
     learning_rate:f64,
     seed:u64,
     epochs:usize,
@@ -247,4 +247,28 @@ mod tests {
         assert_eq!(reactions.reactions[3], Reaction::Ignore);
     }
 
+    #[test]
+    fn test_update_qreport(){
+        let mut agent = Agent::new(0, &mut StdRng::seed_from_u64(64));
+        agent.qreport.report_see = 0.0;
+        agent.qreport.ignore_see = 0.0;
+        agent.qreport.report_notsee = 0.0;
+        agent.qreport.ignore_notsee = 0.0;    
+        let mut params = Params::default();
+        params.learning_rate = 0.1;
+        params.n = 2;
+        let observes = Observes{observes:vec![
+            Observe{observer:0, observed:1, observe_status:ObserveStatus::See},
+            Observe{observer:1, observed:0, observe_status:ObserveStatus::Notsee}
+        ]};
+        let mut rng = StdRng::seed_from_u64(params.seed);
+        let actions = Actions{actions:vec![Action::Compliant, Action::Violated]};
+        let reactions = vec![Reaction::Report, Reaction::Ignore];
+        agent.update_qreport(&params, &reactions[0], 1.0, &observes);
+        let qreport = &agent.qreport;
+        assert_eq!(qreport.report_see, 0.1);
+        assert_eq!(qreport.ignore_see, 0.0);
+        assert_eq!(qreport.report_notsee, 0.0);
+        assert_eq!(qreport.ignore_notsee, 0.0);   
+    }
 }
