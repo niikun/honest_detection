@@ -5,19 +5,19 @@ use agent::{Agent,Agents, Qvalue, Qreport};
 
 #[derive(Debug, Clone)]
 pub struct Params {
-    n:usize,
-    gain:f64, //違反時の報酬
-    harm:f64, //違反者から被る損害
-    p_viol:f64, //違反時の罰則
-    detect_p:f64,  //違反の検知確率
-    cost:f64,  //報告のコスト
-    learning_rate:f64,
-    seed:u64,
-    epochs:usize,
-    epsilon:f64,
-    mode:Mode,
-    r_true: f64,
-    p_false: f64,
+    pub n:usize,
+    pub gain:f64, //違反時の報酬
+    pub harm:f64, //違反者から被る損害
+    pub p_viol:f64, //違反時の罰則
+    pub detect_p:f64,  //違反の検知確率
+    pub cost:f64,  //報告のコスト
+    pub learning_rate:f64,
+    pub seed:u64,
+    pub epochs:usize,
+    pub epsilon:f64,
+    pub mode:Mode,
+    pub r_true: f64,
+    pub p_false: f64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -40,7 +40,7 @@ pub enum Action {
 }
 
 pub struct Actions {
-    actions: Vec<Action>
+    pub actions: Vec<Action>
 }
 
 #[derive(Debug,PartialEq, Copy, Clone)]
@@ -49,8 +49,7 @@ pub enum Reaction {
     Ignore
 } 
 pub struct Reactions {
-    reactions: Vec<Reaction>
-
+    pub reactions: Vec<Reaction>
 }
 
 #[derive(Debug,Clone,PartialEq)]
@@ -61,7 +60,7 @@ pub enum ReportState {
 }
 
 pub struct ReportStates {
-    states:Vec<ReportState>
+    pub states:Vec<ReportState>
 }
 
 #[derive(Debug, PartialEq)]
@@ -96,7 +95,7 @@ impl Observe {
 }
 
 pub struct Observes {
-    observes:Vec<Observe>
+    pub observes:Vec<Observe>
 }
 
 impl Observes {
@@ -189,6 +188,24 @@ pub fn get_report_reward(params:&Params, report_states:&ReportStates, observes:&
     observer_rewards.iter().zip(observed_rewards.iter())
     .map(|(observer,observed)| (*observer,*observed))
     .collect()
+}
+
+pub fn set_report_states(observes:&Observes, reactions:&Reactions) -> ReportStates {
+    for (i,o) in observes.observes.iter().enumerate(){
+        assert_eq!(o.observer, i);
+    }
+    let report_states = observes.observes.iter().zip(reactions.reactions.iter())
+        .map(|(o,r)| {
+            if o.observe_status == ObserveStatus::See && *r == Reaction::Report {
+                ReportState::ReportTrue
+            } else if o.observe_status == ObserveStatus::Notsee && *r == Reaction::Report {
+                ReportState::ReportFalse
+            } else {
+                ReportState::Ignore
+            }
+        })
+        .collect::<Vec<ReportState>>();
+    ReportStates{states:report_states}
 }
 
 pub fn choose_action(qvalue:&Qvalue)->Action {
@@ -392,7 +409,38 @@ mod tests {
                 assert_eq!(rewards[2],(- params.cost, -params.p_viol));
             }
             
-        }
-       
+        }   
+    }
+    #[test]
+    fn test_set_report_states(){
+        let observes = Observes{ observes: vec![
+            Observe {observer:0, observed:1, observe_status:ObserveStatus::See},
+            Observe {observer:1, observed:1, observe_status:ObserveStatus::See},
+            Observe {observer:2, observed:0, observe_status: ObserveStatus::Notsee},
+            Observe {observer:3, observed:0, observe_status: ObserveStatus::Notsee}
+        ]};
+        let reactions: Reactions = Reactions { reactions: vec![
+            Reaction::Report, Reaction::Ignore,Reaction::Report, Reaction::Ignore
+        ]};
+        let report_states = set_report_states(&observes, &reactions);
+        assert_eq!(report_states.states[0], ReportState::ReportTrue);
+        assert_eq!(report_states.states[1], ReportState::Ignore);
+        assert_eq!(report_states.states[2], ReportState::ReportFalse);
+        assert_eq!(report_states.states[3], ReportState::Ignore);
+    }
+
+    #[should_panic]
+    #[test]
+    fn test_set_report_states_wrong_order(){
+        let observes = Observes{ observes: vec![
+            Observe {observer:0, observed:1, observe_status:ObserveStatus::See},
+            Observe {observer:1, observed:1, observe_status:ObserveStatus::See},
+            Observe {observer:2, observed:0, observe_status: ObserveStatus::Notsee},
+            Observe {observer:4, observed:0, observe_status: ObserveStatus::Notsee}
+        ]};
+        let reactions: Reactions = Reactions { reactions: vec![
+            Reaction::Report, Reaction::Ignore,Reaction::Report, Reaction::Ignore
+        ]};
+        let report_states = set_report_states(&observes, &reactions);
     }
 }

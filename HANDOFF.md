@@ -1,6 +1,6 @@
 # honest_detection 学習ハンドオフ
 
-作成: 2026-10-28 / 最終更新: 2026-11-07
+作成: 2026-10-28 / 最終更新: 2026-11-08
 目的: 検知共有×評判ネットワークのシミュレーションを**一から作り**、Rust（型・所有権・テスト）と設計力を身につける。最終的に Axum API + Lovable(React) まで（期限 2026-12-31）。
 関連: 秘書ノート `topics/verifiable-detection-reward-network.md`（構想）/ `topics/honest-detection-rust-api-roadmap.md`（ロードマップ）
 
@@ -84,9 +84,14 @@
   - テスト `test_get_report_reward`: n=3、none と retro の両方（期待値は mode ごとに紙で計算して書く）。`default()` の `p_viol` を 3.0（モデルの値）にしたため、`test_run` 側で `params1.p_viol = 0.0` を明示（「罰なし」の基準）。これで未決の `default` 問題は決着
   - つまずきと解決: ①`observed_rewards` を `states[j]`（j自身の通報状態）と並べていた → 「j が通報されたか」は `observed[j]` で決まるので `match` は不要に ②印を付ける条件に「見た人が通報した」が抜けていた → `observes` と `states` を `zip` ③テストが `p_viol=0` で罰を検出できなかった
   - 未実装・未決: `Mode::Immediate`（R_IMM）の分岐は 0.0 のまま（else と同じ）。`SPAM_P` の定義は未決。浮動小数点の `assert_eq!` は今は通るが、値が増えたら誤差付き比較を調べる
+- 2026-11-08: **`set_report_states` 完了**（`cargo test` 10件成功。`src/lib.rs` は未コミット）
+  - 済: `set_report_states(&Observes, &Reactions) -> ReportStates`（Report × See → `ReportTrue`、Report × Notsee → `ReportFalse`、Ignore → `Ignore`。表は自分で書けた）。先頭で `observer == i` を `assert_eq!`（i 番目の `Observe` ＝ i 番の見た側、という前提をコードに残した）。テスト `test_set_report_states`（4通り）と `test_set_report_states_wrong_order`（`#[should_panic]`）
+  - 決まったこと: 前提が破れたら `Err` ではなく `panic`（呼ぶ側のバグなので。Rust Book 9.3）。ただし Axum API で外から通報を受けるときは、境界で `Result` / `Err` にする（その時に再検討）
+  - つまずき: テストに `panic!` を直書きして常に失敗させていた → `#[should_panic]` を付ければ関数側のパニックで成功になる
+  - 任意: `#[should_panic(expected = "...")]` で別のパニックと取り違えない／`observes` と `reactions` の長さの確認／`if` を `match (&状態, 反応)` にする
 - 次の一歩（ステップ4 ③）:
-  1. `Reactions` と `Observes` から `ReportStates` を作る関数（Report × See → `ReportTrue`、Report × Notsee → `ReportFalse`、Ignore → `Ignore`）。i 番目の `Observe` ＝ i 番の見た側、という順序の前提をテストかコメントで残す。小さなテスト（n=3 の例）から
-  2. N体のラウンドを別の関数にする（①全員が行動 → ②見る → ③通報/無視 → `ReportStates` → `get_report_reward` → 各エージェントの Q 値を更新）。違反者の報酬 `gain` も忘れずに（違反＝`gain`、通報されたら `-p_viol`）。1体用の `run` は触らない
+  1. （完了）`set_report_states`
+  2. N体のラウンドを別の関数にする。**まず受け取るものと返すもの**（`Params`・`Agents`・`rng` を受け取り、集計に必要な1ラウンドの結果を返す、を自分で決める）。小さく区切って、テストを通しながら（11/02 の教訓）。順序は（①全員が行動 → ②見る → ③通報/無視 → `ReportStates` → `get_report_reward` → 各エージェントの Q 値を更新）。違反者の報酬 `gain` も忘れずに（違反＝`gain`、通報されたら `-p_viol`）。1体用の `run` は触らない
   3. テスト: none 条件で通報がほぼゼロになること
   4. 余力があれば `Mode::Immediate`（R_IMM）の分岐を足す（ステップ5の3条件比較で必要）
 - amnesia との接続: 違反・通報・評判は Twin Towns にまだない。「この街で何を違反とするか」は未決（v0.1 の後で検討）
