@@ -1,4 +1,5 @@
 use rand::rngs::StdRng;
+use rand::seq::IndexedMutRandom;
 use rand::{RngExt, SeedableRng};
 mod agent;
 use agent::{Agent,Agents, Qvalue, Qreport};
@@ -147,11 +148,15 @@ pub fn get_reward(params:&Params,action:&Action, reaction:&Reaction, rng: &mut S
     } else {
         0.0
     };
-    //未実装
+    
     let reward_reaction = 0.0;
     (reward_action, reward_reaction)
 }
-
+/// 戻り値(違反Q に渡す報酬, 通報Q に渡す報酬)
+pub fn get_rewards(params:&Params, actions:&Actions, report_states:&ReportStates, observes:&Observes) -> Vec<(f64,f64)> {
+    todo!()
+}
+/// (通報者の報酬, 違反者の罰)
 pub fn get_report_reward(params:&Params, report_states:&ReportStates, observes:&Observes) ->Vec<(f64, f64)>{
     let reward_report_true = if params.mode == Mode::Retro{
         params.r_true
