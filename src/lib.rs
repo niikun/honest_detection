@@ -462,8 +462,50 @@ mod tests {
     }
 
     #[test]
-    fn test_get_rewards() {
+    fn test_get_rewards_mode_none() {
         let mut params = Params::default();
-        
+        params.n = 3;
+        let actions = Actions {
+            actions: vec![Action::Compliant, Action::Violated,  Action::Violated]
+        };
+        let report_states = ReportStates{
+            states: vec![ReportState::ReportTrue, ReportState::ReportFalse, ReportState::Ignore]
+        };
+
+        let observes = Observes{
+            observes:vec![
+                Observe{observer:0, observed:1, observe_status:ObserveStatus::See},
+                Observe{observer:1, observed:0, observe_status:ObserveStatus::Notsee},
+                Observe{observer:2, observed:1, observe_status:ObserveStatus::Notsee}
+            ]
+        };
+        let rewards = get_rewards(&params, &actions, &report_states, &observes);
+        assert_eq!(rewards[0], (0.0, - params.cost));
+        assert_eq!(rewards[1], (params.gain - params.p_viol, -params.cost));
+        assert_eq!(rewards[2], (params.gain, 0.0));
+    }
+    #[test]
+    fn test_get_rewards_mode_retro() {
+        let mut params = Params::default();
+        params.n = 3;
+        params.mode = Mode::Retro;
+        let actions = Actions {
+            actions: vec![Action::Compliant, Action::Violated,  Action::Violated]
+        };
+        let report_states = ReportStates{
+            states: vec![ReportState::ReportTrue, ReportState::ReportFalse, ReportState::Ignore]
+        };
+
+        let observes = Observes{
+            observes:vec![
+                Observe{observer:0, observed:1, observe_status:ObserveStatus::See},
+                Observe{observer:1, observed:0, observe_status:ObserveStatus::Notsee},
+                Observe{observer:2, observed:1, observe_status:ObserveStatus::Notsee}
+            ]
+        };
+        let rewards = get_rewards(&params, &actions, &report_states, &observes);
+        assert_eq!(rewards[0], (0.0, - params.cost + params.r_true));
+        assert_eq!(rewards[1], (params.gain - params.p_viol, -params.cost - params.p_false));
+        assert_eq!(rewards[2], (params.gain, 0.0));
     }
 }
