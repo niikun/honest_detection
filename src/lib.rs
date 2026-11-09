@@ -152,25 +152,23 @@ pub fn get_reward(params:&Params,action:&Action, reaction:&Reaction, rng: &mut S
     let reward_reaction = 0.0;
     (reward_action, reward_reaction)
 }
-/// 戻り値(違反Q に渡す報酬, 通報Q に渡す報酬)
+/// 戻り値(行為<守る/違反>に対する報酬, 通報<通報/無視> に対する報酬)
+/// 第一要素はupdate_qvalueのreward_action
+/// 第二要素はupdate_qreportのreward_reaction
 pub fn get_rewards(params:&Params, actions:&Actions, report_states:&ReportStates, observes:&Observes) -> Vec<(f64,f64)> {
     let report_rewards = get_report_reward(params, report_states, observes);
     report_rewards.iter().zip(actions.actions.iter())
-                    .map(|((report_reward,observed_reward),action)| {
-                    if  observed_reward== &0.0 {
-                            if action == &Action::Violated {
-                                (params.gain, *report_reward)
-                            } else {
-                                (0.0, *report_reward)
-                            }
-                    } else {
-                            (params.gain - params.p_viol, *report_reward)
-                        }
-                    })    
+                    .map(|((reward_reaction,penalty_action),action)| {
+                    if action == &Action::Violated {
+                        (penalty_action + params.gain, *reward_reaction)
+                    }else{
+                        (*penalty_action, *reward_reaction)
+                    }
+    })                            
     .collect()
 }
 
-/// (通報者の報酬, 違反者の罰)
+/// (通報<通報/無視>に対する報酬, 行為<守る/違反>に対する罰（報酬なし）)
 pub fn get_report_reward(params:&Params, report_states:&ReportStates, observes:&Observes) ->Vec<(f64, f64)>{
     let reward_report_true = if params.mode == Mode::Retro{
         params.r_true
@@ -461,5 +459,11 @@ mod tests {
             Reaction::Report, Reaction::Ignore,Reaction::Report, Reaction::Ignore
         ]};
         let report_states = set_report_states(&observes, &reactions);
+    }
+
+    #[test]
+    fn test_get_rewards() {
+        let mut params = Params::default();
+        
     }
 }
