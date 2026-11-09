@@ -154,8 +154,22 @@ pub fn get_reward(params:&Params,action:&Action, reaction:&Reaction, rng: &mut S
 }
 /// 戻り値(違反Q に渡す報酬, 通報Q に渡す報酬)
 pub fn get_rewards(params:&Params, actions:&Actions, report_states:&ReportStates, observes:&Observes) -> Vec<(f64,f64)> {
-    todo!()
+    let report_rewards = get_report_reward(params, report_states, observes);
+    report_rewards.iter().zip(actions.actions.iter())
+                    .map(|((report_reward,observed_reward),action)| {
+                    if  observed_reward== &0.0 {
+                            if action == &Action::Violated {
+                                (params.gain, *report_reward)
+                            } else {
+                                (0.0, *report_reward)
+                            }
+                    } else {
+                            (params.gain - params.p_viol, *report_reward)
+                        }
+                    })    
+    .collect()
 }
+
 /// (通報者の報酬, 違反者の罰)
 pub fn get_report_reward(params:&Params, report_states:&ReportStates, observes:&Observes) ->Vec<(f64, f64)>{
     let reward_report_true = if params.mode == Mode::Retro{

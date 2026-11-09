@@ -69,7 +69,7 @@
   - 未決: 評判を住民の行動に影響させるか、画面表示だけか。どの出来事を API に送るか（違反の目撃・通報など）
   - 2026-11-06 確認: amnesia の場所は PC ごとに違う（メイン: `~/project/2026gw-amnesia`、サブ: `/home/kawata/project/2026gw-amnesia`）。既存サーバーは Fastify で 8787 番、画面は 5173 番 → Axum は別ポートにする
   - 2026-11-06 確認: Twin Towns には「違反」「通報」「評判」にあたるものがまだない（`docs/`・`packages/sim`・`packages/ledger`・`apps` を検索して該当なし）。**API を作る前に「この街で何を違反とするか」を決める必要がある**（お金の移動・土地・投票など、住民の実際の行動のどれに対応させるか）。台帳に足すなら `LedgerEvent`（`tick` と `type` を持つ形）に合わせる。検討は v0.1 の後でよい
-- 2026-11-05: **③-1 完了、③-2 ほぼ完了**（未コミット。`cargo test` 6件成功）
+- 2026-11-05: **③-1 完了、③-2 ほぼ完了**（コミット済み。`cargo test` 6件成功）
   - ③-1: `get_reaction(&self, params, &Observes, rng)` に修正（所有権の問題を解消）。ε-greedy を入れた（探索 → See → Notsee の `if / else if / else`）。`Agents::get_reactions -> Reactions`（`get_actions` と同じ形、`rng` をクロージャに渡す）
   - テスト `test_get_reactions`: n=4、`epsilon = 0.0`、Q値を1か所ずつ 1.0、**状態を4人分手で固定**（最初は `Observes::new` の乱数任せで偶然通っていた → 修正）。任意: 比べる相手も 0.0 と明示すると初期化方法に依存しない
   - ③-2: `update_qreport` を実装。状態で `match` → 反応で4フィールドに振り分け（`&Reaction` と `Reaction` の比較エラーは `&Reaction::Report` で解消）。自分の状態は `observes.iter().find(|o| o.observer == id).unwrap()` で探す形（`get_reaction` は `observes[id]` の添字。どちらかに揃えるとよい）
@@ -77,14 +77,14 @@
   - 任意: `match (状態, 反応)` のタプル match にすると4通りが表の形で並び、書き忘れをコンパイラが検出（Book 6.2 / 19章）
   - 未確認: テストの `epsilon = 0.0` を外すと失敗するシードがあるか（ε-greedy が効いている確認）
   - 自分の言葉で説明（ステップ4の締めで `Note.md` に）: `self` / `Observes` を値で受けると、なぜ2人目の呼び出しでエラーになるか（所有権・move・借用）
-- 2026-11-07: **③-2 `update_qreport` のテスト完了、報酬設計（none / retro）完了**（`cargo test` 8件成功。`src/lib.rs` は未コミット）
+- 2026-11-07: **③-2 `update_qreport` のテスト完了、報酬設計（none / retro）完了**（`cargo test` 8件成功。コミット済み）
   - 済: `test_update_qreport` を4通り（状態2×反応2）に拡張。失敗の原因は `agent` の使い回し → ループ内で毎回作り直して解決
   - 決まったこと: ①none は通報者に `-COST` のみ（嘘への罰 `P_FALSE` は retro だけ。偽通報かどうかで none の報酬は変えない）②違反者の罰 `P_VIOL` は通報者が何人でも1回だけ（「j が通報された」＝ j を `See` した人のうち1人でも `Report`。`any` で bool）③「通報されたか」の bool は関数の**外**で計算して渡す（retro と場合分けしやすい）④1体用 `get_reward` / `run` は触らず、N体用の新しい関数を別に作る（自由関数。`Agent` のメソッドにしない: `self` を使わないため）
   - 済（報酬）: `ReportState { Ignore, ReportTrue, ReportFalse }` / `ReportStates`（i番目＝i番の通報状態）。`Params` に `r_true`（1.0）/`p_false`（1.0）を追加。`get_report_reward(params, &ReportStates, &Observes) -> Vec<(f64, f64)>`（戻りは（通報者の報酬, 違反者の罰）、i番目＝i番）。通報者は none が `-cost`、retro が本物なら `-cost + r_true`、偽物なら `-cost - p_false`。違反者の罰は「j を `See` した人の誰かが `ReportTrue`」のとき `-p_viol` を1回だけ（`observed` に印を付ける形。印は被害者の添字）
   - テスト `test_get_report_reward`: n=3、none と retro の両方（期待値は mode ごとに紙で計算して書く）。`default()` の `p_viol` を 3.0（モデルの値）にしたため、`test_run` 側で `params1.p_viol = 0.0` を明示（「罰なし」の基準）。これで未決の `default` 問題は決着
   - つまずきと解決: ①`observed_rewards` を `states[j]`（j自身の通報状態）と並べていた → 「j が通報されたか」は `observed[j]` で決まるので `match` は不要に ②印を付ける条件に「見た人が通報した」が抜けていた → `observes` と `states` を `zip` ③テストが `p_viol=0` で罰を検出できなかった
   - 未実装・未決: `Mode::Immediate`（R_IMM）の分岐は 0.0 のまま（else と同じ）。`SPAM_P` の定義は未決。浮動小数点の `assert_eq!` は今は通るが、値が増えたら誤差付き比較を調べる
-- 2026-11-08: **`set_report_states` 完了**（`cargo test` 10件成功。`src/lib.rs` は未コミット）
+- 2026-11-08: **`set_report_states` 完了**（`cargo test` 10件成功。コミット済み）
   - 済: `set_report_states(&Observes, &Reactions) -> ReportStates`（Report × See → `ReportTrue`、Report × Notsee → `ReportFalse`、Ignore → `Ignore`。表は自分で書けた）。先頭で `observer == i` を `assert_eq!`（i 番目の `Observe` ＝ i 番の見た側、という前提をコードに残した）。テスト `test_set_report_states`（4通り）と `test_set_report_states_wrong_order`（`#[should_panic]`）
   - 決まったこと: 前提が破れたら `Err` ではなく `panic`（呼ぶ側のバグなので。Rust Book 9.3）。ただし Axum API で外から通報を受けるときは、境界で `Result` / `Err` にする（その時に再検討）
   - つまずき: テストに `panic!` を直書きして常に失敗させていた → `#[should_panic]` を付ければ関数側のパニックで成功になる
@@ -93,10 +93,16 @@
   - 決まったこと: ①N体の報酬は、先に `get_rewards` を作ってから、ラウンド関数につなぐ（小さく区切る）②`get_rewards` の中で1体用の `get_reward` は**使わない**（あれは `detect_p` の確率で罰を決める1体用。N体の罰は「通報されたか」で決まり、`get_report_reward` がすでに計算している）。`rng` も不要 ③損害（`harm`）: エージェント i が被る損害＝`harm × 自分以外の違反者の数`（元モデルの「総損害/R」26.6 ≒ 9.8×9×0.3 と一致）。損害は i の選択に関係なく同じだけ乗るので、`守る` と `違反` の Q値の差は変わらない → **学習の報酬には入れず、集計用の値として別の関数で計算する**
   - 済: `get_rewards(params, &Actions, &ReportStates, &Observes) -> Vec<(f64, f64)>`（第1要素＝違反Q に渡す報酬、第2要素＝通報Q に渡す報酬。`///` に書いた）。**`get_report_reward` はタプルの順序が逆（通報者の報酬, 違反者の罰）なので注意**
   - つまずき: 警告を消そうとして、1体用 `get_reward` の変数名を書き換えて壊した（`reward_reaction` → `_reaction`）→ 元に戻した。1体用は触らない方針
-  - 次の問い（途中）: エージェント i の「違反Q に渡す報酬」を3通りで書く（守った＝0／違反して通報されなかった＝`gain`／違反して通報された＝`gain - p_viol`）。「通報されたか」は `get_report_reward` の第2要素（罰）から引ける。1人が何人に通報されても罰は1回
+  - （後半で完了）`get_rewards` の中身を実装。下の 11/09 後半を参照
+- 2026-11-09 後半: **`get_rewards` の中身を実装**（`cargo test` 10件成功。`src/lib.rs` は未コミット）
+  - 決まったこと: 違反Q の報酬は3通り（守った＝0.0／違反して通報されず＝`gain`／違反して通報された＝`gain - p_viol`）。守った人は罰を受けない（`See` は相手が違反したときだけ、罰の印は `ReportTrue` のときだけ → 守った人への通報は必ず `ReportFalse`）。「通報されたか」は `get_report_reward` の i 番目の `.1`（罰。0.0 か `-p_viol`）
+  - 済: `get_report_reward` の結果と `actions` を `zip` して、`.1 == 0.0` → 行動で `gain` / `0.0`、それ以外 → `gain - p_viol`。通報Q の報酬は `.0` をそのまま
+  - つまずきと解決: ①`match` の腕に `-1.0 * params.p_viol`（式）を書いた → パターンには固定の値しか書けない（Book 19章）②`iter()` の要素が `&f64` で `Vec<(f64, f64)>` にできない → `*report_reward` で値に
+  - 補足: `== 0.0` は今は安全（`0.0` / `-p_viol` を代入するだけで計算しないため。`-0.0 == 0.0` も true）。ただし `get_report_reward` の内部事情に依存する
+  - 任意: **行動で先に分ける**と単純になる（違反 → `gain + .1`、守った → `0.0`）。`if` が1段、f64 の比較が不要、罰の決め方が変わっても壊れない
+  - 答えかけの問い（テストの期待値を紙で計算）: n=3。行動 0=違反, 1=守る, 2=違反。観測 0→1 Notsee, 1→0 See, 2→1 Notsee。反応 0=Ignore, 1=Report, 2=Report。`gain=1.0, p_viol=3.0, cost=0.2, r_true=1.0, p_false=1.0` で、none と retro それぞれ3人分の（違反Q の報酬, 通報Q の報酬）は？（守った人・本物の通報で罰を受ける違反者・偽通報者・罰を受けない違反者が全員入る例）
 - 次の一歩（ステップ4 ③）:
-  1. （完了）`set_report_states`
-  2. `get_rewards` の中身を書く（上の3通り＋通報Q の報酬＝`get_report_reward` の第1要素）。n=3 の例でテスト（none と retro の両方。期待値は紙で先に計算）。`///` に「i 番目、第1要素が違反Q、第2要素が通報Q」を足す
+  2. `get_rewards` のテストを書く（中身は実装済み）。上の n=3 の例の期待値を紙で計算してから、none と retro の両方で確認。`///` に「i 番目、第1要素が違反Q、第2要素が通報Q」を足す
   3. 損害（`harm × 自分以外の違反者の数`）を `Actions` と `Params` から計算する別の関数。集計用
   4. N体のラウンドを別の関数にする。受け取るものと返すものを自分で決める（`Params`・`Agents`・`rng`、返すのは集計に必要な1ラウンドの結果。何も返さず `Agents` のカウンタを更新するだけ、でもよい）。小さく区切って、テストを通しながら（11/02 の教訓）。順序は（①全員が行動 → ②見る → ③通報/無視 → `ReportStates` → `get_rewards` → 各エージェントの Q 値を更新）。1体用の `run` は触らない
   5. テスト: none 条件で通報がほぼゼロになること
@@ -206,7 +212,7 @@ N人（N=10）が毎ラウンド「守る/違反する」を選ぶ。違反は�
 
 ## 未決
 
-- ~~`mode` を `Params` に入れるか~~ → 外に出す（2026-10-28 決定）
+- ~~`mode` を `Params` に入れるか~~ → 10/28 に「外に出す」と決めたが、**`Params` に入れる形に変更**（理由: 実験の設定を `Params` 1つで全部管理できる。シードも入れたので「`Params`＝1回の実験の設定一式」。3条件の比較は `p_viol` と同じく clone して `mode` を書き換える）（2026-11-09 記録）
 - ~~シードを `Params` に入れるか~~ → `Params` に入れた（ステップ3）
 - ~~`Params::default()` の `p_viol`~~ → モデルの値（3.0）にした。`test_run` が「罰なし」を使う箇所は `p_viol = 0.0` を明示（2026-11-07）
 - 乱数: `rand` 0.10 の API（`RngExt`）。`StdRng` + `SeedableRng::seed_from_u64` で固定済み（2026-10-30）
