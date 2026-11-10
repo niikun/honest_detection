@@ -1,3 +1,5 @@
+use std::hash::Hasher;
+
 use rand::rngs::StdRng;
 use rand::seq::IndexedMutRandom;
 use rand::{RngExt, SeedableRng};
@@ -224,6 +226,30 @@ pub fn set_report_states(observes:&Observes, reactions:&Reactions) -> ReportStat
         .collect::<Vec<ReportState>>();
     ReportStates{states:report_states}
 }
+
+/// 
+pub fn get_harms(params:&Params, actions: &Actions) -> Vec<f64> {
+    let harm = params.harm;
+    let mut harm_count = 0.0;
+    let mut harms = Vec::new();
+    for action in actions.actions.iter(){
+        if action == &Action::Violated{
+            harms.push(0.0);
+            harm_count += 1.0;
+        } else {
+            harms.push(harm);
+        }
+    }
+    harms.iter().zip(actions.actions.iter()).map(|(h, a)| {
+        if a == &Action::Violated {
+            (harm_count - 1.0) * params.harm
+        } else {
+        *h * harm_count as f64
+        }
+    }).collect()
+}
+
+
 
 pub fn choose_action(qvalue:&Qvalue)->Action {
     let action = if qvalue.violated_case >= qvalue.compliant_case {
@@ -507,5 +533,17 @@ mod tests {
         assert_eq!(rewards[0], (0.0, - params.cost + params.r_true));
         assert_eq!(rewards[1], (params.gain - params.p_viol, -params.cost - params.p_false));
         assert_eq!(rewards[2], (params.gain, 0.0));
+    }
+
+    #[test]
+    fn test_get_harms() {
+        let mut params = Params::default();
+        params.n = 3;
+        let actions = Actions {
+            actions: vec![Action::Violated, Action::Violated, Action::Compliant]
+        };
+        let harms = get_harms(&params, &actions);
+        let expected = vec![params.harm, params.harm, params.harm*2.0];
+        assert_eq!(harms, expected);
     }
 }
