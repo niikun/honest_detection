@@ -249,6 +249,20 @@ pub fn get_harms(params:&Params, actions: &Actions) -> Vec<f64> {
     }).collect()
 }
 
+pub fn round(agents: &mut Agents, params:&Params, rng: &mut StdRng) ->(Actions, ReportStates) {
+    let actions = agents.get_actions(params, rng);
+    let observes:Observes = Observes::new(rng, params, &actions);
+    let reactions = agents.get_reactions(params,&observes, rng);
+    let report_states = set_report_states(&observes, &reactions);
+    let rewards = get_rewards(params, &actions, &report_states, &observes);
+    for i in 0..params.n {
+        let (reward_action, reward_reaction) = rewards[i];
+        agents.agents[i].update_qvalue(params,&actions.actions[i], reward_action);
+        agents.agents[i].update_qreport(params, &reactions.reactions[i], reward_reaction, &observes);
+    }
+    (actions, report_states)
+}
+
 
 
 pub fn choose_action(qvalue:&Qvalue)->Action {
