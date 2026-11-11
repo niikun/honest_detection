@@ -561,10 +561,10 @@ mod tests {
 
     #[test]
     fn test_round(){
-        let mut rng = StdRng::seed_from_u64(params.seed);
         let mut params = Params::default();
         params.n = 2;
         params.epsilon = 0.0;
+        let mut rng = StdRng::seed_from_u64(params.seed);
         let mut q_report = Qreport{
             report_see:0.0,
             report_notsee:0.0,
@@ -576,7 +576,7 @@ mod tests {
             violated_case:0.0
         };
         
-        let agent0 = Agent{
+        let mut agent0 = Agent{
             id:0,
             qvalue: q_value.clone(),
             qreport: q_report.clone(),
@@ -584,7 +584,7 @@ mod tests {
             count_false_report:0usize,
             count_ignore:0usize
         };
-        let agent1 = Agent{
+        let mut agent1 = Agent{
             id:1,
             qvalue: q_value.clone(),
             qreport: q_report.clone(),
@@ -593,7 +593,7 @@ mod tests {
             count_ignore:0usize
         };
 
-        let agents = Agents{agents:vec![agent0,agent1]};
+        let mut agents = Agents{agents:vec![agent0,agent1]};
         let actions = Actions {
             actions: vec![Action::Violated, Action::Compliant]
         };
@@ -604,15 +604,21 @@ mod tests {
             states:vec![ReportState::ReportFalse, ReportState::ReportTrue]
         };
         let observes = Observes {
-            observes:vec![
-                Observe{observer:0,observed:1, observe_status:ObserveStatus::Notsee},
-                Observe{observer:1,observed:0,observe_status:ObserveStatus::See}
-                ]
+            observes:vec![Observe{observer:0,observed:1, observe_status:ObserveStatus::Notsee},
+                Observe{observer:1,observed:0,observe_status:ObserveStatus::See}]
         };
 
         let rewards = get_rewards(&params, &actions, &report_states,&observes);
-        
-
+        for (reward_action, reward_reaction) in rewards{
+            println!("reward_action: {}, reward_reaction: {}",reward_action,reward_reaction);
+        }
+        let actions = round(&mut agents, &params, &mut rng);
+        assert_eq!(agent0.qvalue.violated_case,-0.2);        
+        assert_eq!(agent0.qvalue.compliant_case,0.0);
+        assert_eq!(agent1.qvalue.violated_case,0.0);
+        assert_eq!(agent1.qvalue.compliant_case,0.0);
     }
+
 }
+
 

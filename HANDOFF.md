@@ -1,6 +1,6 @@
 # honest_detection 学習ハンドオフ
 
-作成: 2026-10-28 / 最終更新: 2026-11-11
+作成: 2026-10-28 / 最終更新: 2026-11-12
 目的: 検知共有×評判ネットワークのシミュレーションを**一から作り**、Rust（型・所有権・テスト）と設計力を身につける。最終的に Axum API + Lovable(React) まで（期限 2026-12-31）。
 関連: 秘書ノート `topics/verifiable-detection-reward-network.md`（構想）/ `topics/honest-detection-rust-api-roadmap.md`（ロードマップ）
 
@@ -113,8 +113,18 @@
   - 済: `round(agents: &mut Agents, params, rng) -> (Actions, ReportStates)`
   - つまずきと解決: ①`.map(...)` だけでは何も実行されない（イテレータは遅延評価。Book 13.2）→ `for_each`、最終的には `for i in 0..params.n` と添字に（長い `zip` の連鎖より読みやすい）②`iter_mut()` の要素 `&mut Agent` に対してパターン `&mut agent` は move しようとする（`Agent` は `Copy` でない）→ 添字で `agents.agents[i]` を借りる形で回避
   - 注意: `params.n` と `agents.agents.len()` が違うと範囲外でパニック（先頭で `assert_eq!` か、`0..agents.agents.len()` に）。`Agent` のカウンタ（`report` / `false_report` / `ignore`）の更新はまだ無い。ステップ5で `ReportStates` から数えるなら不要、`Agent` のカウンタを使うならここで足す → **どちらにするか決める**
+- 2026-11-11〜12: **`round` のテストに着手**（`f85d231` まではコミット済み。今の `test_round` は未コミットで**コンパイルが通らない**）
+  - 書いたもの: `test_round`。n=2、`epsilon = 0.0`、Q値をすべて 0.0 にした `Agent` を2人手で作り、場面も手で固定（0=違反・1を見て Notsee・偽通報、1=守る・0を見て See・本物の通報）。期待値 `agent0.qvalue.violated_case == -0.2` は正しい（通報されたので 1.0 - 3.0 = -2.0、×学習率 0.1）
+  - 問題3つ:
+    1. **E0382**: `Agents{agents: vec![agent0, agent1]}` で所有権が `agents` に移るので、その後 `agent0.qvalue` は使えない → `agents.agents[0]` を通して見る
+    2. **`round` も `update_*` も呼んでいない**: `get_rewards` で報酬を計算して表示しているだけなので Q値は 0.0 のまま → assert は失敗する
+    3. **手で作った場面は `round` に渡せない**: `round` は `actions` / `observes` / `reactions` を中で自分で作る。今の書き方は「部品を手でつなぐと正しい」の確認で、`round` 自体の確認ではない
+  - 答えかけの問い: `round` のテストの方針は A か B か
+    - A: `round` を実際に呼び、返ってきた `(Actions, ReportStates)` と Q値の**つじつま**を確かめる（違反した人の `violated_case` が報酬の方向に動いた／守った人の `violated_case` は不変、など）
+    - B: 場面を手で固定して更新部分を確かめる → `round` を「場面を作る部分」と「更新する部分」に分ける必要あり
+    - ヒント: `epsilon = 0.0` で Q値がすべて 0.0 なら、`get_action` / `get_reaction` は同点の扱いで行動が決まる。2人は何を選ぶか？ そのとき `round` の中で乱数に左右されるのはどこだけか？
 - 次の一歩（ステップ4 ③-4 の続き）:
-  1. `round` のテストを書く。問い: 1ラウンド回したあと何が起きていれば「学習した」と言えるか（n=2、`epsilon = 0.0`、シード固定で確かめられる値を1つ。`test_update_qreport` と同じく、更新前と後の Q値を比べる形が考えられる）。`round` が返す `Actions` / `ReportStates` の中身も確かめられる
+  1. `round` のテストを書く（上の方針 A/B を決めてから）。問い: 1ラウンド回したあと何が起きていれば「学習した」と言えるか（n=2、`epsilon = 0.0`、シード固定で確かめられる値を1つ。`test_update_qreport` と同じく、更新前と後の Q値を比べる形が考えられる）。`round` が返す `Actions` / `ReportStates` の中身も確かめられる
   2. カウンタをどうするか決める（上の注意）。`params.n` と `agents.len()` の前提の確認も
   3. テスト: none 条件で通報がほぼゼロになること（`round` を何千回か回す。ステップ5の `run_n` の前段）
   4. 余力があれば `Mode::Immediate`（R_IMM）の分岐を足す（ステップ5の3条件比較で必要）
