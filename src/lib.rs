@@ -561,4 +561,24 @@ mod tests {
         let expected = vec![params.harm, params.harm, params.harm*2.0];
         assert_eq!(harms, expected);
     }
+
+    #[test]
+    fn test_round(){
+        let mut params = Params::default();
+        params.n = 2;
+        params.epsilon = 0.0;
+        let mut q_report = Qreport{
+            report_see:0.0,
+            report_notsee:0.0,
+            ignore_see:0.0, 
+            ignore_notsee:0.0
+        };  
+        let mut q_value = Qvalue{
+            compliant_case:0.0,
+            violated_case:0.0
+        };
+        
+                                                  }
+
+    }
 }
