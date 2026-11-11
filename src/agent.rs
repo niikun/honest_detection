@@ -2,7 +2,7 @@ use rand::rngs::StdRng;
 use rand::{RngExt};
 use crate::{Action, Actions, Observes, ObserveStatus, Params, Reaction, Reactions, get_reward};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Qvalue {
     pub compliant_case:f64,
     pub violated_case:f64
@@ -17,7 +17,7 @@ impl Qvalue{
     } 
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Qreport {
     pub report_see: f64,
     pub report_notsee: f64,
@@ -35,14 +35,14 @@ impl Qreport {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Agent{
     pub id: usize,
     pub qvalue: Qvalue,
     pub qreport: Qreport,
-    count_report: usize,
-    count_false_report:usize,
-    count_ignore:usize,
+    pub count_report: usize,
+    pub count_false_report:usize,
+    pub count_ignore:usize,
 }
 
 impl Agent {

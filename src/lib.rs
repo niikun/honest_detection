@@ -1,7 +1,4 @@
-use std::hash::Hasher;
-
 use rand::rngs::StdRng;
-use rand::seq::IndexedMutRandom;
 use rand::{RngExt, SeedableRng};
 mod agent;
 use agent::{Agent,Agents, Qvalue, Qreport};
@@ -564,6 +561,7 @@ mod tests {
 
     #[test]
     fn test_round(){
+        let mut rng = StdRng::seed_from_u64(params.seed);
         let mut params = Params::default();
         params.n = 2;
         params.epsilon = 0.0;
@@ -578,7 +576,43 @@ mod tests {
             violated_case:0.0
         };
         
-                                                  }
+        let agent0 = Agent{
+            id:0,
+            qvalue: q_value.clone(),
+            qreport: q_report.clone(),
+            count_report: 0usize,
+            count_false_report:0usize,
+            count_ignore:0usize
+        };
+        let agent1 = Agent{
+            id:1,
+            qvalue: q_value.clone(),
+            qreport: q_report.clone(),
+            count_report: 0usize,
+            count_false_report:0usize,
+            count_ignore:0usize
+        };
+
+        let agents = Agents{agents:vec![agent0,agent1]};
+        let actions = Actions {
+            actions: vec![Action::Violated, Action::Compliant]
+        };
+        let reactions = Reactions {
+            reactions:vec![Reaction::Report, Reaction::Report]
+        };
+        let report_states = ReportStates{
+            states:vec![ReportState::ReportFalse, ReportState::ReportTrue]
+        };
+        let observes = Observes {
+            observes:vec![
+                Observe{observer:0,observed:1, observe_status:ObserveStatus::Notsee},
+                Observe{observer:1,observed:0,observe_status:ObserveStatus::See}
+                ]
+        };
+
+        let rewards = get_rewards(&params, &actions, &report_states,&observes);
+        
 
     }
 }
+
