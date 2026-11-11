@@ -255,6 +255,7 @@ pub fn round(agents: &mut Agents, params:&Params, rng: &mut StdRng) ->(Actions, 
     let reactions = agents.get_reactions(params,&observes, rng);
     let report_states = set_report_states(&observes, &reactions);
     let rewards = get_rewards(params, &actions, &report_states, &observes);
+    assert_eq!(params.n, agents.agents.len());
     for i in 0..params.n {
         let (reward_action, reward_reaction) = rewards[i];
         agents.agents[i].update_qvalue(params,&actions.actions[i], reward_action);
