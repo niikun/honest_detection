@@ -39,6 +39,7 @@ pub enum Action {
     Violated
 }
 
+#[derive(Debug,PartialEq)]
 pub struct Actions {
     pub actions: Vec<Action>
 }
@@ -59,6 +60,7 @@ pub enum ReportState {
     ReportFalse
 }
 
+#[derive(Debug, PartialEq)]
 pub struct ReportStates {
     pub states:Vec<ReportState>
 }
@@ -274,7 +276,9 @@ pub fn choose_action(qvalue:&Qvalue)->Action {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::sync::MutexGuard;
+
+use super::*;
 
     #[test]
     fn test_default() {
@@ -564,6 +568,8 @@ mod tests {
         let mut params = Params::default();
         params.n = 2;
         params.epsilon = 0.0;
+        params.detect_p = 0.0;
+        params.epsilon = 0.0;
         let mut rng = StdRng::seed_from_u64(params.seed);
         let mut q_report = Qreport{
             report_see:0.0,
@@ -592,31 +598,51 @@ mod tests {
             count_false_report:0usize,
             count_ignore:0usize
         };
+        agent1.qvalue.compliant_case = 1.0;
+        agent1.qreport.ignore_notsee = 1.0;
 
         let mut agents = Agents{agents:vec![agent0,agent1]};
         let actions = Actions {
             actions: vec![Action::Violated, Action::Compliant]
         };
         let reactions = Reactions {
-            reactions:vec![Reaction::Report, Reaction::Report]
+            reactions:vec![Reaction::Report, Reaction::Ignore]
         };
         let report_states = ReportStates{
-            states:vec![ReportState::ReportFalse, ReportState::ReportTrue]
+            states:vec![ReportState::ReportFalse, ReportState::Ignore]
         };
         let observes = Observes {
             observes:vec![Observe{observer:0,observed:1, observe_status:ObserveStatus::Notsee},
-                Observe{observer:1,observed:0,observe_status:ObserveStatus::See}]
+                Observe{observer:1,observed:0,observe_status:ObserveStatus::Notsee}]
         };
 
         let rewards = get_rewards(&params, &actions, &report_states,&observes);
-        for (reward_action, reward_reaction) in rewards{
-            println!("reward_action: {}, reward_reaction: {}",reward_action,reward_reaction);
+        for reward in rewards{
+            println!("reward_action:{}, reward_reaction: {}",reward.0,reward.1);
+
         }
-        let actions = round(&mut agents, &params, &mut rng);
-        assert_eq!(agent0.qvalue.violated_case,-0.2);        
-        assert_eq!(agent0.qvalue.compliant_case,0.0);
-        assert_eq!(agent1.qvalue.violated_case,0.0);
-        assert_eq!(agent1.qvalue.compliant_case,0.0);
+        let (actions, report_state) = round(&mut agents, &params, &mut rng);
+        println!("actions:{:?}",actions);
+        println!("report_state: {:?}", report_state);
+        let agent0_after = &agents.agents[0];
+        let agent1_after = &agents.agents[1];
+        let multiplier = 1000.0;
+        assert_eq!((agent0_after.qvalue.violated_case* multiplier).round() / multiplier,0.1);        
+        assert_eq!((agent0_after.qvalue.compliant_case*multiplier).round() / multiplier,0.0);
+        assert_eq!((agent1_after.qvalue.violated_case * multiplier).round() / multiplier,0.0);
+        assert_eq!((agent1_after.qvalue.compliant_case * multiplier).round() / multiplier,0.9);
+
+        assert_eq!((agent0_after.qreport.report_see * multiplier).round()/ multiplier, 0.0);
+        assert_eq!((agent0_after.qreport.ignore_see * multiplier).round() / multiplier, 0.0);
+        assert_eq!((agent0_after.qreport.report_notsee* multiplier).round() /multiplier, -0.02);
+        assert_eq!((agent0_after.qreport.ignore_notsee * multiplier).round()/ multiplier, 0.0);
+        assert_eq!((agent1_after.qreport.report_see * multiplier).round()/ multiplier, 0.0);
+        assert_eq!((agent1_after.qreport.ignore_see * multiplier).round() / multiplier, 0.0);
+        assert_eq!((agent1_after.qreport.report_notsee * multiplier).round() / multiplier, 0.0);
+        assert_eq!((agent1_after.qreport.ignore_notsee * multiplier).round() / multiplier, 0.9);
+        assert_eq!(actions, Actions{actions:vec![Action::Violated, Action::Compliant]});
+        assert_eq!(report_state, ReportStates{states:vec![ReportState::ReportFalse, ReportState::Ignore]});
+
     }
 
 }

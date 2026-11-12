@@ -113,24 +113,19 @@
   - 済: `round(agents: &mut Agents, params, rng) -> (Actions, ReportStates)`
   - つまずきと解決: ①`.map(...)` だけでは何も実行されない（イテレータは遅延評価。Book 13.2）→ `for_each`、最終的には `for i in 0..params.n` と添字に（長い `zip` の連鎖より読みやすい）②`iter_mut()` の要素 `&mut Agent` に対してパターン `&mut agent` は move しようとする（`Agent` は `Copy` でない）→ 添字で `agents.agents[i]` を借りる形で回避
   - 注意: `params.n` と `agents.agents.len()` が違うと範囲外でパニック（先頭で `assert_eq!` か、`0..agents.agents.len()` に）。`Agent` のカウンタ（`report` / `false_report` / `ignore`）の更新はまだ無い。ステップ5で `ReportStates` から数えるなら不要、`Agent` のカウンタを使うならここで足す → **どちらにするか決める**
-- 2026-11-11〜12: **`round` のテストに着手**（`f85d231` まではコミット済み。今の `test_round` は未コミットで**コンパイルが通らない**）
-  - 書いたもの: `test_round`。n=2、`epsilon = 0.0`、Q値をすべて 0.0 にした `Agent` を2人手で作り、場面も手で固定（0=違反・1を見て Notsee・偽通報、1=守る・0を見て See・本物の通報）。期待値 `agent0.qvalue.violated_case == -0.2` は正しい（通報されたので 1.0 - 3.0 = -2.0、×学習率 0.1）
-  - 問題3つ:
-    1. **E0382**: `Agents{agents: vec![agent0, agent1]}` で所有権が `agents` に移るので、その後 `agent0.qvalue` は使えない → `agents.agents[0]` を通して見る
-    2. **`round` も `update_*` も呼んでいない**: `get_rewards` で報酬を計算して表示しているだけなので Q値は 0.0 のまま → assert は失敗する
-    3. **手で作った場面は `round` に渡せない**: `round` は `actions` / `observes` / `reactions` を中で自分で作る。今の書き方は「部品を手でつなぐと正しい」の確認で、`round` 自体の確認ではない
-  - 答えかけの問い: `round` のテストの方針は A か B か
-    - A: `round` を実際に呼び、返ってきた `(Actions, ReportStates)` と Q値の**つじつま**を確かめる（違反した人の `violated_case` が報酬の方向に動いた／守った人の `violated_case` は不変、など）
-    - B: 場面を手で固定して更新部分を確かめる → `round` を「場面を作る部分」と「更新する部分」に分ける必要あり
-    - ヒント: `epsilon = 0.0` で Q値がすべて 0.0 なら、`get_action` / `get_reaction` は同点の扱いで行動が決まる。2人は何を選ぶか？ そのとき `round` の中で乱数に左右されるのはどこだけか？
+- 2026-11-12: **`round` の最初のテスト完了**（`cargo test` 14件成功。`5f2a304` まではコミット済み、最後の整理分は未コミット）
+  - 方針: A（`round` を実際に呼び、返り値と Q値の**つじつま**を確かめる）に決着。乱数に頼らず場面を決めるには、**初期値で固定**する: `epsilon = 0.0`（探索なし）、`detect_p = 0.0`（誰も `See` にならない）、`Qvalue` / `Qreport` の大小で行動・反応を狙う。手で作った `actions` 等は `round` に渡せない（`round` が中で作る）ので、前半の手作り部分は `round` の確認には不要
+  - 済: `test_round`（n=2）。`agent0` は Q値が引き分け → `get_action` の `>` が偽で **`Violated`**（引き分けは `Violated` 側）、`Qreport` 引き分けは `>=` で **`Report`** → 偽通報。`agent1` は `compliant_case = 1.0` で守る、`ignore_notsee = 1.0` で**無視**。期待値: `agent0.violated_case` = 0.1（報酬 `gain` ×0.1）、`agent0.report_notsee` = -0.02（`-cost` ×0.1）、`agent1.compliant_case` = 0.9、`agent1.ignore_notsee` = 0.9（**無視は `-cost` がかからない**＝報酬 0.0）。選ばなかった枝は全部動かない。戻り値も `assert_eq!`（`actions == [Violated, Compliant]`、`report_state == [ReportFalse, Ignore]`）
+  - つまずきと解決: ①`params` を作る前に `params.seed` を使った ②期待値が前の設定（罰を受ける場面）のまま残っていた → 今の設定で `round` の中を追って計算し直した ③`ignore_see + multiplier` の `+` の打ち間違い（`*` にする） ④`agent1` の期待値 0.88 → 無視の報酬は 0.0 なので 0.9（`get_report_reward` の `Ignore => 0.0`）⑤`Agent` を `Copy` にしない理由: 暗黙の複製で、更新したのに元が変わらないバグが起きやすい。`Clone`（明示的な `.clone()`）で十分
+  - 残る（任意）: 前半の手作りの `actions` / `reactions` / `report_states` / `observes` / `get_rewards` と `println!` の整理。`Agent { ... }` の2人分の重複（`Agent::new` + 上書き）。同じ丸めの式を小さな関数に
 - 次の一歩（ステップ4 ③-4 の続き）:
-  1. `round` のテストを書く（上の方針 A/B を決めてから）。問い: 1ラウンド回したあと何が起きていれば「学習した」と言えるか（n=2、`epsilon = 0.0`、シード固定で確かめられる値を1つ。`test_update_qreport` と同じく、更新前と後の Q値を比べる形が考えられる）。`round` が返す `Actions` / `ReportStates` の中身も確かめられる
+  1. `See` を起こす場面（`detect_p = 1.0`、本物の通報、罰 `-p_viol`）での `round` のテスト（retro も入れると `r_true` / `p_false` まで通せる）
   2. カウンタをどうするか決める（上の注意）。`params.n` と `agents.len()` の前提の確認も
   3. テスト: none 条件で通報がほぼゼロになること（`round` を何千回か回す。ステップ5の `run_n` の前段）
   4. 余力があれば `Mode::Immediate`（R_IMM）の分岐を足す（ステップ5の3条件比較で必要）
 - amnesia との接続: 違反・通報・評判は Twin Towns にまだない。「この街で何を違反とするか」は未決（v0.1 の後で検討）
 - 見積もり（11/10 時点）: 部品は揃った（v0.1 の7割程度）。v0.1 まであと3〜4回（ラウンド関数1〜2回＋none のテストと `Immediate` 0.5〜1回＋ステップ5 1.5〜2回）
-- 見積もり（11/11 に見直し）: `round` が書けたので、ステップ4 の残りは `round` のテストと none の通報ゼロのテスト（0.5〜1回）。v0.1 まであと2〜4回（＋`Immediate` 0.5回＋ステップ5 1.5〜2回）。進み具合は v0.1 の7割強。結果表に合わせる調整と `SPAM_P` は外れやすい。（11/10 は「あと3〜4回」、11/5 は「あと5〜8回」）11/12〜12/10 は応用編2と並走。年内の範囲（v0.1＋API の最初の口まで、など）はステップ4終了時に見直す
+- 見積もり（11/12 に見直し）: `round` とその最初のテストが済んだ。ステップ4 の残りは `See` の場面のテストと none の通報ゼロのテスト（0.5〜1回）。v0.1 まであと2〜3回（＋`Immediate` 0.5回＋ステップ5 1.5〜2回）。進み具合は v0.1 の7割強〜8割弱。（11/11 は「あと2〜4回」）結果表に合わせる調整と `SPAM_P` は外れやすい。（11/10 は「あと3〜4回」、11/5 は「あと5〜8回」）11/12〜12/10 は応用編2と並走。年内の範囲（v0.1＋API の最初の口まで、など）はステップ4終了時に見直す
 
 ## 参考実装（見るのは各ステップを書き終えてから）
 
