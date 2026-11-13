@@ -618,12 +618,12 @@ use super::*;
 
         let rewards = get_rewards(&params, &actions, &report_states,&observes);
         for reward in rewards{
-            println!("reward_action:{}, reward_reaction: {}",reward.0,reward.1);
+            // println!("reward_action:{}, reward_reaction: {}",reward.0,reward.1);
 
         }
         let (actions, report_state) = round(&mut agents, &params, &mut rng);
-        println!("actions:{:?}",actions);
-        println!("report_state: {:?}", report_state);
+        // println!("actions:{:?}",actions);
+        // println!("report_state: {:?}", report_state);
         let agent0_after = &agents.agents[0];
         let agent1_after = &agents.agents[1];
         let multiplier = 1000.0;
@@ -644,7 +644,89 @@ use super::*;
         assert_eq!(report_state, ReportStates{states:vec![ReportState::ReportFalse, ReportState::Ignore]});
 
     }
+    #[test]
+    fn test_round_see(){
+        let mut params = Params::default();
+        params.n = 2;
+        params.epsilon = 0.0;
+        params.detect_p = 1.0;
+        params.epsilon = 0.0;
+        params.mode = Mode::Retro;
+        let mut rng = StdRng::seed_from_u64(params.seed);
+        let mut q_report = Qreport{
+            report_see:0.0,
+            report_notsee:0.0,
+            ignore_see:0.0, 
+            ignore_notsee:0.0
+        };  
+        let mut q_value = Qvalue{
+            compliant_case:0.5,
+            violated_case:0.0
+        };
+        
+        let mut agent0 = Agent{
+            id:0,
+            qvalue: q_value.clone(),
+            qreport: q_report.clone(),
+            count_report: 0usize,
+            count_false_report:0usize,
+            count_ignore:0usize
+        };
+        let mut agent1 = Agent{
+            id:1,
+            qvalue: q_value.clone(),
+            qreport: q_report.clone(),
+            count_report: 0usize,
+            count_false_report:0usize,
+            count_ignore:0usize
+        };
+        agent1.qvalue.violated_case = 1.0;
+        agent0.qreport.report_see = 1.0;
+        agent1.qreport.report_see = 1.0;
 
+        let mut agents = Agents{agents:vec![agent0,agent1]};
+        let actions = Actions {
+            actions: vec![Action::Violated, Action::Compliant]
+        };
+        let reactions = Reactions {
+            reactions:vec![Reaction::Report, Reaction::Ignore]
+        };
+        let report_states = ReportStates{
+            states:vec![ReportState::ReportFalse, ReportState::Ignore]
+        };
+        let observes = Observes {
+            observes:vec![Observe{observer:0,observed:1, observe_status:ObserveStatus::Notsee},
+                Observe{observer:1,observed:0,observe_status:ObserveStatus::Notsee}]
+        };
+
+        let rewards = get_rewards(&params, &actions, &report_states,&observes);
+        for reward in rewards{
+            println!("reward_action:{}, reward_reaction: {}",reward.0,reward.1);
+
+        }
+        let (actions, report_state) = round(&mut agents, &params, &mut rng);
+        println!("actions:{:?}",actions);
+        println!("report_state: {:?}", report_state);
+        let agent0_after = &agents.agents[0];
+        let agent1_after = &agents.agents[1];
+        let multiplier = 1000.0;
+        assert_eq!((agent0_after.qvalue.violated_case* multiplier).round() / multiplier,0.0);        
+        assert_eq!((agent0_after.qvalue.compliant_case*multiplier).round() / multiplier,0.45);
+        assert_eq!((agent1_after.qvalue.violated_case * multiplier).round() / multiplier,0.7);
+        assert_eq!((agent1_after.qvalue.compliant_case * multiplier).round() / multiplier,0.5);
+
+        assert_eq!((agent0_after.qreport.report_see * multiplier).round()/ multiplier, 0.98);
+        assert_eq!((agent0_after.qreport.ignore_see * multiplier).round() / multiplier, 0.0);
+        assert_eq!((agent0_after.qreport.report_notsee* multiplier).round() /multiplier, 0.0);
+        assert_eq!((agent0_after.qreport.ignore_notsee * multiplier).round()/ multiplier, 0.0);
+        assert_eq!((agent1_after.qreport.report_see * multiplier).round()/ multiplier, 1.0);
+        assert_eq!((agent1_after.qreport.ignore_see * multiplier).round() / multiplier, 0.0);
+        assert_eq!((agent1_after.qreport.report_notsee * multiplier).round() / multiplier, -0.12);
+        assert_eq!((agent1_after.qreport.ignore_notsee * multiplier).round() / multiplier, 0.0);
+        assert_eq!(actions, Actions{actions:vec![Action::Compliant, Action::Violated]});
+        assert_eq!(report_state, ReportStates{states:vec![ReportState::ReportTrue, ReportState::ReportFalse]});
+
+    }
 }
 
 

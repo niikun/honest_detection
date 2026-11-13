@@ -18,3 +18,8 @@ qvalue.violated_caseも-0.5になる。
 violated_caseは、p_viol=1.5のとき 0.25に、p_viol=2.5のとき -0.25に近づく.
 しかし、最後が１またはー３になるので、 ±0.2〜0.3とおおきく振動する。
 そのため、今までの平均で算出することにした。
+
+## agent0 は Violated を選ばず、agent1 の違反を See で通報しました。この結果、agent1 の violated_case が 0.7 になる計算
+agent1はvioで、agent0がreport_trueで、agent1は通報されたためp_violを受けます。
+reward_actionが gain 1.0 - p_viol 3.0 = -2.0
+qvalueの更新が　(-2.0 - q_val_vio:1.0)*lr:0.1 + qval_vio:1.0 = 0.7 

@@ -1,6 +1,6 @@
 # honest_detection 学習ハンドオフ
 
-作成: 2026-10-28 / 最終更新: 2026-11-12
+作成: 2026-10-28 / 最終更新: 2026-11-13
 目的: 検知共有×評判ネットワークのシミュレーションを**一から作り**、Rust（型・所有権・テスト）と設計力を身につける。最終的に Axum API + Lovable(React) まで（期限 2026-12-31）。
 関連: 秘書ノート `topics/verifiable-detection-reward-network.md`（構想）/ `topics/honest-detection-rust-api-roadmap.md`（ロードマップ）
 
@@ -118,14 +118,17 @@
   - 済: `test_round`（n=2）。`agent0` は Q値が引き分け → `get_action` の `>` が偽で **`Violated`**（引き分けは `Violated` 側）、`Qreport` 引き分けは `>=` で **`Report`** → 偽通報。`agent1` は `compliant_case = 1.0` で守る、`ignore_notsee = 1.0` で**無視**。期待値: `agent0.violated_case` = 0.1（報酬 `gain` ×0.1）、`agent0.report_notsee` = -0.02（`-cost` ×0.1）、`agent1.compliant_case` = 0.9、`agent1.ignore_notsee` = 0.9（**無視は `-cost` がかからない**＝報酬 0.0）。選ばなかった枝は全部動かない。戻り値も `assert_eq!`（`actions == [Violated, Compliant]`、`report_state == [ReportFalse, Ignore]`）
   - つまずきと解決: ①`params` を作る前に `params.seed` を使った ②期待値が前の設定（罰を受ける場面）のまま残っていた → 今の設定で `round` の中を追って計算し直した ③`ignore_see + multiplier` の `+` の打ち間違い（`*` にする） ④`agent1` の期待値 0.88 → 無視の報酬は 0.0 なので 0.9（`get_report_reward` の `Ignore => 0.0`）⑤`Agent` を `Copy` にしない理由: 暗黙の複製で、更新したのに元が変わらないバグが起きやすい。`Clone`（明示的な `.clone()`）で十分
   - 残る（任意）: 前半の手作りの `actions` / `reactions` / `report_states` / `observes` / `get_rewards` と `println!` の整理。`Agent { ... }` の2人分の重複（`Agent::new` + 上書き）。同じ丸めの式を小さな関数に
+- 2026-11-13: **`See` を起こす場面の `round` のテスト完了**（`cargo test` 15件成功。未コミット）
+  - 済: `test_round_see`（n=2、`epsilon = 0.0`、`detect_p = 1.0`、retro）。agent0 は守る・`report_see` が大きいので、agent1 の違反を `See` して `ReportTrue`。agent1 は違反（`violated_case` が大きい）・`Notsee` で `Report` → `ReportFalse`。期待値: agent1 の `violated_case` = 0.7（報酬 `gain - p_viol` = -2.0 → `(-2.0 - 1.0) * 0.1 + 1.0`）、agent0 の `report_see` = 0.98（`-cost + r_true`）、agent1 の `report_notsee` = -0.12（`-cost - p_false`）、agent0 の `compliant_case` = 0.45（守った報酬 0.0 に向かって動く）
+  - つまずきと解決: 期待値の `0.0` は「Q値が初期値から動かない」前提だった。実際は選んだ行動のQ値は報酬の方向に10%動き、選ばなかった枝は初期値のまま（初期値が 0.5 なら 0.5）。`round` の中を追って計算し直した。`Note.md` に agent1 が 0.7 になる計算を記録
+  - 任意: `params.epsilon = 0.0` の重複、`get_rewards` と `println!` の整理（`test_round` と同じく）
 - 次の一歩（ステップ4 ③-4 の続き）:
-  1. `See` を起こす場面（`detect_p = 1.0`、本物の通報、罰 `-p_viol`）での `round` のテスト（retro も入れると `r_true` / `p_false` まで通せる）
-  2. カウンタをどうするか決める（上の注意）。`params.n` と `agents.len()` の前提の確認も
-  3. テスト: none 条件で通報がほぼゼロになること（`round` を何千回か回す。ステップ5の `run_n` の前段）
-  4. 余力があれば `Mode::Immediate`（R_IMM）の分岐を足す（ステップ5の3条件比較で必要）
+  1. カウンタをどうするか決める（`ReportStates` から数えるか、`Agent` のカウンタを使うか）。`params.n` と `agents.len()` の前提の確認も
+  2. テスト: none 条件で通報がほぼゼロになること（`round` を何千回か回す。ステップ5の `run_n` の前段）
+  3. 余力があれば `Mode::Immediate`（R_IMM）の分岐を足す（ステップ5の3条件比較で必要）
 - amnesia との接続: 違反・通報・評判は Twin Towns にまだない。「この街で何を違反とするか」は未決（v0.1 の後で検討）
 - 見積もり（11/10 時点）: 部品は揃った（v0.1 の7割程度）。v0.1 まであと3〜4回（ラウンド関数1〜2回＋none のテストと `Immediate` 0.5〜1回＋ステップ5 1.5〜2回）
-- 見積もり（11/12 に見直し）: `round` とその最初のテストが済んだ。ステップ4 の残りは `See` の場面のテストと none の通報ゼロのテスト（0.5〜1回）。v0.1 まであと2〜3回（＋`Immediate` 0.5回＋ステップ5 1.5〜2回）。進み具合は v0.1 の7割強〜8割弱。（11/11 は「あと2〜4回」）結果表に合わせる調整と `SPAM_P` は外れやすい。（11/10 は「あと3〜4回」、11/5 は「あと5〜8回」）11/12〜12/10 は応用編2と並走。年内の範囲（v0.1＋API の最初の口まで、など）はステップ4終了時に見直す
+- 見積もり（11/13 に見直し）: `round` の2つのテスト（`See` の場面を含む）が済んだ。ステップ4 の残りはカウンタの決定と none の通報ゼロのテスト（0.5回程度）。v0.1 の進み具合は変わらず7割強〜8割弱。（11/12 は「`See` の場面のテストと none の通報ゼロのテスト 0.5〜1回」）以下は11/12 の見積もり: v0.1 まであと2〜3回（＋`Immediate` 0.5回＋ステップ5 1.5〜2回）。進み具合は v0.1 の7割強〜8割弱。（11/11 は「あと2〜4回」）結果表に合わせる調整と `SPAM_P` は外れやすい。（11/10 は「あと3〜4回」、11/5 は「あと5〜8回」）11/12〜12/10 は応用編2と並走。年内の範囲（v0.1＋API の最初の口まで、など）はステップ4終了時に見直す
 
 ## 参考実装（見るのは各ステップを書き終えてから）
 
