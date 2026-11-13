@@ -1,6 +1,6 @@
 use rand::rngs::StdRng;
 use rand::{RngExt};
-use crate::{Action, Actions, Observes, ObserveStatus, Params, Reaction, Reactions, get_reward};
+use crate::{Action, Actions, Observes, ObserveStatus, Params, Reaction, Reactions};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Qvalue {

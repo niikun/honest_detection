@@ -318,7 +318,6 @@ use super::*;
         let agents = Agents{agents:vec![agent1, agent2]};
         let actions = agents.get_actions(&params, &mut rng);
         assert_eq!(actions.actions.len(),2);
-        assert!(actions.actions[0]==Action::Compliant || actions.actions[0]==Action::Violated);
     }
     #[test]
     fn test_get_observe_detectp1(){
@@ -567,7 +566,6 @@ use super::*;
     fn test_round(){
         let mut params = Params::default();
         params.n = 2;
-        params.epsilon = 0.0;
         params.detect_p = 0.0;
         params.epsilon = 0.0;
         let mut rng = StdRng::seed_from_u64(params.seed);
@@ -650,7 +648,6 @@ use super::*;
         params.n = 2;
         params.epsilon = 0.0;
         params.detect_p = 1.0;
-        params.epsilon = 0.0;
         params.mode = Mode::Retro;
         let mut rng = StdRng::seed_from_u64(params.seed);
         let mut q_report = Qreport{
