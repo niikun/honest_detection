@@ -18,6 +18,7 @@ pub struct Params {
     pub mode:Mode,
     pub r_true: f64,
     pub p_false: f64,
+    pub r_imm: f64
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -29,7 +30,8 @@ pub enum Mode {
 
 impl Default for Params { 
     fn default()->Self {
-        Self { n: 10, 
+        Self { 
+            n: 10, 
             gain: 1.0, 
             harm: 0.3, 
             p_viol:3.0, 
@@ -41,7 +43,9 @@ impl Default for Params {
             epsilon:0.3, 
             mode:Mode::None, 
             r_true:1.0, 
-            p_false:1.0}
+            p_false:1.0,
+            r_imm:0.3
+        }
     }
 }
 
@@ -123,7 +127,7 @@ impl Observes {
     }
 }
 
-pub fn run(params:&Params) ->Qvalue{
+pub fn run(params:&mut Params) ->Qvalue{
     let mut rng = StdRng::seed_from_u64(params.seed);
     let mut agent = Agent::new(0usize,&mut rng);
     let mut amount_violated = 0.0;
@@ -150,7 +154,10 @@ pub fn run(params:&Params) ->Qvalue{
     Qvalue{compliant_case: compliant_case, violated_case: violated_case}
 }
 
-pub fn get_reward(params:&Params,action:&Action, reaction:&Reaction, rng: &mut StdRng) -> (f64, f64) {
+pub fn get_reward(params:&mut Params,action:&Action, reaction:&Reaction, rng: &mut StdRng) -> (f64, f64) {
+    if params.mode == Mode::None {
+        params.r_imm = 0.0;
+    }
     let random_num:f64 = rng.random();
     let reward_action = if action == &Action::Violated {
         if random_num <= params.detect_p {
@@ -168,7 +175,7 @@ pub fn get_reward(params:&Params,action:&Action, reaction:&Reaction, rng: &mut S
 /// 戻り値(行為<守る/違反>に対する報酬, 通報<通報/無視> に対する報酬)
 /// 第一要素はupdate_qvalueのreward_action
 /// 第二要素はupdate_qreportのreward_reaction
-pub fn get_rewards(params:&Params, actions:&Actions, report_states:&ReportStates, observes:&Observes) -> Vec<(f64,f64)> {
+pub fn get_rewards(params:&mut Params, actions:&Actions, report_states:&ReportStates, observes:&Observes) -> Vec<(f64,f64)> {
     let report_rewards = get_report_reward(params, report_states, observes);
     report_rewards.iter().zip(actions.actions.iter())
                     .map(|((reward_reaction,penalty_action),action)| {
@@ -183,23 +190,31 @@ pub fn get_rewards(params:&Params, actions:&Actions, report_states:&ReportStates
 
 /// (通報<通報/無視>に対する報酬, 行為<守る/違反>に対する罰（報酬なし）)
 pub fn get_report_reward(params:&Params, report_states:&ReportStates, observes:&Observes) ->Vec<(f64, f64)>{
-    let reward_report_true = if params.mode == Mode::Retro{
-        params.r_true
-    } else if params.mode == Mode::Immediate { 
-        0.0 
+    // 通報の瞬間にもらう額（真偽は確かめない）。immediate と retro だけ
+    let reward_imm: f64 = if params.mode == Mode::Immediate || params.mode == Mode::Retro {
+        params.r_imm
     } else {
         0.0
     };
-    let penalty_report_false: f64 = if params.mode == Mode::Retro{
+    // 後で照合して本物だったときの上乗せ。retro だけ
+    let reward_true_bonus: f64 = if params.mode == Mode::Retro {
+        params.r_true
+    } else {
+        0.0
+    };
+    // 後で照合して嘘だったときの罰。retro だけ
+    let penalty_report_false: f64 = if params.mode == Mode::Retro {
         params.p_false
-    } else {0.0};
+    } else {
+        0.0
+    };
 
     let observer_rewards:Vec<f64> = report_states.states.iter()
             .map(|state:&ReportState|{
         match state {
             ReportState::Ignore => 0.0,
-            ReportState::ReportTrue => - params.cost + reward_report_true,
-            ReportState::ReportFalse => - params.cost- penalty_report_false
+            ReportState::ReportTrue => - params.cost + reward_imm + reward_true_bonus,
+            ReportState::ReportFalse => - params.cost + reward_imm - penalty_report_false
         }
     }).collect();
     let mut observed = Vec::new();
@@ -260,7 +275,7 @@ pub fn get_harms(params:&Params, actions: &Actions) -> Vec<f64> {
     }).collect()
 }
 
-pub fn round(agents: &mut Agents, params:&Params, rng: &mut StdRng) ->(Actions, ReportStates) {
+pub fn round(agents: &mut Agents, params:&mut Params, rng: &mut StdRng) ->(Actions, ReportStates) {
     let actions = agents.get_actions(params, rng);
     let observes:Observes = Observes::new(rng, params, &actions);
     let reactions = agents.get_reactions(params,&observes, rng);
@@ -292,6 +307,10 @@ mod tests {
 
 use super::*;
 
+    fn round_float(value:f64) -> f64 {
+        (value * 1000.0).round() / 1000.0
+    }
+
     #[test]
     fn test_default() {
         let params = Params::default();
@@ -309,9 +328,9 @@ use super::*;
         params1.p_viol = 0.0;
         params2.p_viol = 1.5;
         params3.p_viol = 2.5;
-        let qvalue1 = run(&params1);
-        let qvalue2 = run(&params2);
-        let qvalue3 = run(&params3);
+        let qvalue1 = run(&mut params1);
+        let qvalue2 = run(&mut params2);
+        let qvalue3 = run(&mut params3);
         let action1 = choose_action(&qvalue1);
         let action2 = choose_action(&qvalue2);
         let action3 = choose_action(&qvalue3);
@@ -455,7 +474,7 @@ use super::*;
     fn test_get_report_reward(){
         let mut params = Params::default();
         params.n = 3;
-        let modes = [Mode::Retro, Mode::None];
+        let modes = [Mode::Retro, Mode::Immediate, Mode::None];
         for mode in modes{
             params.mode = mode;
             let report_states = ReportStates {
@@ -469,14 +488,20 @@ use super::*;
                 ]
             };
             let rewards = get_report_reward(&params, &report_states, &observes) ;
-            if params.mode == Mode::Retro{
-                assert_eq!(rewards[0],(params.r_true - params.cost, 0.0));
-                assert_eq!(rewards[1],(0.0, 0.0));
-                assert_eq!(rewards[2],(-params.p_false - params.cost, -params.p_viol));
-            } else {
+            if params.mode == Mode::None{
                 assert_eq!(rewards[0],(- params.cost, 0.0));
                 assert_eq!(rewards[1],(0.0, 0.0));
                 assert_eq!(rewards[2],(- params.cost, -params.p_viol));
+            } else if params.mode == Mode::Immediate {
+                // 真偽は確かめないので、本物も偽通報も同じ（r_imm - cost）
+                assert_eq!((round_float(rewards[0].0),round_float(rewards[0].1)),(round_float(- params.cost + params.r_imm), 0.0));
+                assert_eq!(rewards[1],(0.0, 0.0));
+                assert_eq!((round_float(rewards[2].0),round_float(rewards[2].1)),(round_float(- params.cost + params.r_imm), -params.p_viol));
+            } else {
+                // retro: 本物は r_true の上乗せ、偽通報は p_false の罰
+                assert_eq!((round_float(rewards[0].0),round_float(rewards[0].1)),(round_float(params.r_true - params.cost + params.r_imm), 0.0));
+                assert_eq!(rewards[1],(0.0, 0.0));
+                assert_eq!((round_float(rewards[2].0),round_float(rewards[2].1)),(round_float(-params.p_false - params.cost + params.r_imm), -params.p_viol));
             }
             
         }   
@@ -532,7 +557,7 @@ use super::*;
                 Observe{observer:2, observed:1, observe_status:ObserveStatus::Notsee}
             ]
         };
-        let rewards = get_rewards(&params, &actions, &report_states, &observes);
+        let rewards = get_rewards(&mut params, &actions, &report_states, &observes);
         assert_eq!(rewards[0], (0.0, - params.cost));
         assert_eq!(rewards[1], (params.gain - params.p_viol, -params.cost));
         assert_eq!(rewards[2], (params.gain, 0.0));
@@ -556,9 +581,9 @@ use super::*;
                 Observe{observer:2, observed:1, observe_status:ObserveStatus::Notsee}
             ]
         };
-        let rewards = get_rewards(&params, &actions, &report_states, &observes);
-        assert_eq!(rewards[0], (0.0, - params.cost + params.r_true));
-        assert_eq!(rewards[1], (params.gain - params.p_viol, -params.cost - params.p_false));
+        let rewards = get_rewards(&mut params, &actions, &report_states, &observes);
+        assert_eq!(rewards[0], (0.0, - params.cost + params.r_imm + params.r_true));
+        assert_eq!((round_float(rewards[1].0), round_float(rewards[1].1)),(params.gain - params.p_viol, round_float(-params.cost - params.p_false + params.r_imm)));
         assert_eq!(rewards[2], (params.gain, 0.0));
     }
 
@@ -628,12 +653,12 @@ use super::*;
                 Observe{observer:1,observed:0,observe_status:ObserveStatus::Notsee}]
         };
 
-        let rewards = get_rewards(&params, &actions, &report_states,&observes);
+        let rewards = get_rewards(&mut params, &actions, &report_states,&observes);
         for reward in rewards{
             // println!("reward_action:{}, reward_reaction: {}",reward.0,reward.1);
 
         }
-        let (actions, report_state) = round(&mut agents, &params, &mut rng);
+        let (actions, report_state) = round(&mut agents, &mut params, &mut rng);
         // println!("actions:{:?}",actions);
         // println!("report_state: {:?}", report_state);
         let agent0_after = &agents.agents[0];
@@ -712,8 +737,8 @@ use super::*;
                 Observe{observer:1,observed:0,observe_status:ObserveStatus::Notsee}]
         };
 
-        let rewards = get_rewards(&params, &actions, &report_states,&observes);
-          let (actions, report_state) = round(&mut agents, &params, &mut rng);
+        let rewards = get_rewards(&mut params, &actions, &report_states,&observes);
+          let (actions, report_state) = round(&mut agents, &mut params, &mut rng);
         let agent0_after = &agents.agents[0];
         let agent1_after = &agents.agents[1];
         let multiplier = 1000.0;
@@ -722,13 +747,13 @@ use super::*;
         assert_eq!((agent1_after.qvalue.violated_case * multiplier).round() / multiplier,0.7);
         assert_eq!((agent1_after.qvalue.compliant_case * multiplier).round() / multiplier,0.5);
 
-        assert_eq!((agent0_after.qreport.report_see * multiplier).round()/ multiplier, 0.98);
+        assert_eq!((agent0_after.qreport.report_see * multiplier).round()/ multiplier, 1.01);
         assert_eq!((agent0_after.qreport.ignore_see * multiplier).round() / multiplier, 0.0);
         assert_eq!((agent0_after.qreport.report_notsee* multiplier).round() /multiplier, 0.0);
         assert_eq!((agent0_after.qreport.ignore_notsee * multiplier).round()/ multiplier, 0.0);
         assert_eq!((agent1_after.qreport.report_see * multiplier).round()/ multiplier, 1.0);
         assert_eq!((agent1_after.qreport.ignore_see * multiplier).round() / multiplier, 0.0);
-        assert_eq!((agent1_after.qreport.report_notsee * multiplier).round() / multiplier, -0.12);
+        assert_eq!((agent1_after.qreport.report_notsee * multiplier).round() / multiplier, -0.09);
         assert_eq!((agent1_after.qreport.ignore_notsee * multiplier).round() / multiplier, 0.0);
         assert_eq!(actions, Actions{actions:vec![Action::Compliant, Action::Violated]});
         assert_eq!(report_state, ReportStates{states:vec![ReportState::ReportTrue, ReportState::ReportFalse]});
@@ -800,12 +825,12 @@ use super::*;
                 Observe{observer:1,observed:0,observe_status:ObserveStatus::Notsee}]
         };
 
-        let rewards = get_rewards(&params, &actions, &report_states,&observes);
+        let rewards = get_rewards(&mut params, &actions, &report_states,&observes);
         for reward in rewards{
             println!("reward_action:{}, reward_reaction: {}",reward.0,reward.1);
 
         }
-        let (actions, report_state) = round(&mut agents, &params, &mut rng);
+        let (actions, report_state) = round(&mut agents, &mut params, &mut rng);
         // println!("actions:{:?}",actions);
         // println!("report_state: {:?}", report_state);
         let agent0_after = &agents.agents[0];
@@ -834,7 +859,7 @@ use super::*;
         let mut total_violate = 0;
         let mut total_report = 0;
         for i in 0..params.epochs {
-            let (actions, report_states) = round(&mut agents, &params, &mut rng);
+            let (actions, report_states) = round(&mut agents, &mut params, &mut rng);
             if i >= 500 {
                 actions.actions.iter().for_each(|action| if action == &Action::Violated {total_violate += 1});
                 report_states.states.iter().for_each(|state| if state != &ReportState::Ignore {total_report += 1});
