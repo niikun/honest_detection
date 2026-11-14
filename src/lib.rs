@@ -29,17 +29,29 @@ pub enum Mode {
 
 impl Default for Params { 
     fn default()->Self {
-        Self { n: 10, gain: 1.0, harm: 0.3, p_viol:3.0, detect_p:0.5, cost: 0.2, learning_rate:0.1,seed:64,epochs:1000, epsilon:0.3, mode:Mode::None, r_true:1.0, p_false:1.0}
+        Self { n: 10, 
+            gain: 1.0, 
+            harm: 0.3, 
+            p_viol:3.0, 
+            detect_p:0.5, 
+            cost: 0.2, 
+            learning_rate:0.1,
+            seed:64,
+            epochs:1000, 
+            epsilon:0.3, 
+            mode:Mode::None, 
+            r_true:1.0, 
+            p_false:1.0}
     }
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug,PartialEq, Clone)]
 pub enum Action {
     Compliant,
     Violated
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug,PartialEq, Clone)]
 pub struct Actions {
     pub actions: Vec<Action>
 }
@@ -60,7 +72,7 @@ pub enum ReportState {
     ReportFalse
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ReportStates {
     pub states:Vec<ReportState>
 }
@@ -313,9 +325,9 @@ use super::*;
     fn test_get_actions(){
         let params = Params::default();
         let mut rng =StdRng::seed_from_u64(params.seed);
-        let agent1 = Agent::new(0, &mut rng);
-        let agent2 = Agent::new(1, &mut rng);
-        let agents = Agents{agents:vec![agent1, agent2]};
+        let mut agent1 = Agent::new(0, &mut rng);
+        let mut agent2 = Agent::new(1, &mut rng);
+        let mut agents = Agents{agents:vec![agent1, agent2]};
         let actions = agents.get_actions(&params, &mut rng);
         assert_eq!(actions.actions.len(),2);
     }
@@ -358,7 +370,7 @@ use super::*;
         agent2.qreport.ignore_see = 1.0;
         agent3.qreport.report_notsee = 1.0;
         agent4.qreport.ignore_notsee = 1.0;
-        let agents = Agents{agents:vec![agent1, agent2, agent3, agent4]};
+        let mut agents = Agents{agents:vec![agent1, agent2, agent3, agent4]};
         let actions = Actions{
             actions:vec![Action::Violated, Action::Violated, Action::Compliant, Action::Compliant]
         };
@@ -584,16 +596,18 @@ use super::*;
             id:0,
             qvalue: q_value.clone(),
             qreport: q_report.clone(),
-            count_report: 0usize,
-            count_false_report:0usize,
+            count_violate:0usize,
+            count_report_true: 0usize,
+            count_report_false:0usize,
             count_ignore:0usize
         };
         let mut agent1 = Agent{
             id:1,
             qvalue: q_value.clone(),
             qreport: q_report.clone(),
-            count_report: 0usize,
-            count_false_report:0usize,
+            count_violate:0usize,
+            count_report_true: 0usize,
+            count_report_false:0usize,
             count_ignore:0usize
         };
         agent1.qvalue.compliant_case = 1.0;
@@ -665,23 +679,113 @@ use super::*;
             id:0,
             qvalue: q_value.clone(),
             qreport: q_report.clone(),
-            count_report: 0usize,
-            count_false_report:0usize,
+            count_violate:0usize,
+            count_report_true: 0usize,
+            count_report_false:0usize,
             count_ignore:0usize
         };
         let mut agent1 = Agent{
             id:1,
             qvalue: q_value.clone(),
             qreport: q_report.clone(),
-            count_report: 0usize,
-            count_false_report:0usize,
+            count_violate:0usize,
+            count_report_true: 0usize,
+            count_report_false:0usize,
             count_ignore:0usize
         };
         agent1.qvalue.violated_case = 1.0;
         agent0.qreport.report_see = 1.0;
         agent1.qreport.report_see = 1.0;
 
-        let mut agents = Agents{agents:vec![agent0,agent1]};
+        let mut agents = Agents{agents:vec![agent0.clone(),agent1.clone()]};
+        let actions = Actions {
+            actions: vec![Action::Violated, Action::Compliant]
+        };
+        let reactions = Reactions {
+            reactions:vec![Reaction::Report, Reaction::Ignore]
+        };
+        let report_states = ReportStates{
+            states:vec![ReportState::ReportFalse, ReportState::Ignore]
+        };
+        let observes = Observes {
+            observes:vec![Observe{observer:0,observed:1, observe_status:ObserveStatus::Notsee},
+                Observe{observer:1,observed:0,observe_status:ObserveStatus::Notsee}]
+        };
+
+        let rewards = get_rewards(&params, &actions, &report_states,&observes);
+          let (actions, report_state) = round(&mut agents, &params, &mut rng);
+        let agent0_after = &agents.agents[0];
+        let agent1_after = &agents.agents[1];
+        let multiplier = 1000.0;
+        assert_eq!((agent0_after.qvalue.violated_case* multiplier).round() / multiplier,0.0);        
+        assert_eq!((agent0_after.qvalue.compliant_case*multiplier).round() / multiplier,0.45);
+        assert_eq!((agent1_after.qvalue.violated_case * multiplier).round() / multiplier,0.7);
+        assert_eq!((agent1_after.qvalue.compliant_case * multiplier).round() / multiplier,0.5);
+
+        assert_eq!((agent0_after.qreport.report_see * multiplier).round()/ multiplier, 0.98);
+        assert_eq!((agent0_after.qreport.ignore_see * multiplier).round() / multiplier, 0.0);
+        assert_eq!((agent0_after.qreport.report_notsee* multiplier).round() /multiplier, 0.0);
+        assert_eq!((agent0_after.qreport.ignore_notsee * multiplier).round()/ multiplier, 0.0);
+        assert_eq!((agent1_after.qreport.report_see * multiplier).round()/ multiplier, 1.0);
+        assert_eq!((agent1_after.qreport.ignore_see * multiplier).round() / multiplier, 0.0);
+        assert_eq!((agent1_after.qreport.report_notsee * multiplier).round() / multiplier, -0.12);
+        assert_eq!((agent1_after.qreport.ignore_notsee * multiplier).round() / multiplier, 0.0);
+        assert_eq!(actions, Actions{actions:vec![Action::Compliant, Action::Violated]});
+        assert_eq!(report_state, ReportStates{states:vec![ReportState::ReportTrue, ReportState::ReportFalse]});
+        assert_eq!(agent0_after.count_violate,0);
+        assert_eq!(agent0_after.count_report_true,1);
+        assert_eq!(agent0_after.count_report_false,0);
+        assert_eq!(agent0_after.count_ignore,0);
+        assert_eq!(agent1_after.count_violate,1);
+        assert_eq!(agent1_after.count_report_true,0);
+        assert_eq!(agent1_after.count_report_false,1);
+        assert_eq!(agent1_after.count_ignore,0);
+    }
+
+    #[test]
+    fn test_round_ignore_observestatus(){
+        let mut params = Params::default();
+        params.n = 2;
+        params.epsilon = 0.0;
+        params.detect_p = 1.0;
+        params.mode = Mode::Retro;
+        let mut rng = StdRng::seed_from_u64(params.seed);
+        let mut q_report = Qreport{
+            report_see:0.0,
+            report_notsee:0.0,
+            ignore_see:0.0, 
+            ignore_notsee:0.0
+        };  
+        let mut q_value = Qvalue{
+            compliant_case:0.5,
+            violated_case:0.0
+        };
+        
+        let mut agent0 = Agent{
+            id:0,
+            qvalue: q_value.clone(),
+            qreport: q_report.clone(),
+            count_violate:0usize,
+            count_report_true: 0usize,
+            count_report_false:0usize,
+            count_ignore:0usize
+        };
+        let mut agent1 = Agent{
+            id:1,
+            qvalue: q_value.clone(),
+            qreport: q_report.clone(),
+            count_violate:0usize,
+            count_report_true: 0usize,
+            count_report_false:0usize,
+            count_ignore:0usize
+        };
+        
+        agent0.qvalue.compliant_case = 1.0;
+        agent1.qvalue.violated_case = 1.0;
+        agent0.qreport.ignore_see = 1.0;
+        agent1.qreport.ignore_notsee = 1.0;
+
+        let mut agents = Agents{agents:vec![agent0.clone(),agent1.clone()]};
         let actions = Actions {
             actions: vec![Action::Violated, Action::Compliant]
         };
@@ -702,27 +806,47 @@ use super::*;
 
         }
         let (actions, report_state) = round(&mut agents, &params, &mut rng);
-        println!("actions:{:?}",actions);
-        println!("report_state: {:?}", report_state);
+        // println!("actions:{:?}",actions);
+        // println!("report_state: {:?}", report_state);
         let agent0_after = &agents.agents[0];
         let agent1_after = &agents.agents[1];
-        let multiplier = 1000.0;
-        assert_eq!((agent0_after.qvalue.violated_case* multiplier).round() / multiplier,0.0);        
-        assert_eq!((agent0_after.qvalue.compliant_case*multiplier).round() / multiplier,0.45);
-        assert_eq!((agent1_after.qvalue.violated_case * multiplier).round() / multiplier,0.7);
-        assert_eq!((agent1_after.qvalue.compliant_case * multiplier).round() / multiplier,0.5);
 
-        assert_eq!((agent0_after.qreport.report_see * multiplier).round()/ multiplier, 0.98);
-        assert_eq!((agent0_after.qreport.ignore_see * multiplier).round() / multiplier, 0.0);
-        assert_eq!((agent0_after.qreport.report_notsee* multiplier).round() /multiplier, 0.0);
-        assert_eq!((agent0_after.qreport.ignore_notsee * multiplier).round()/ multiplier, 0.0);
-        assert_eq!((agent1_after.qreport.report_see * multiplier).round()/ multiplier, 1.0);
-        assert_eq!((agent1_after.qreport.ignore_see * multiplier).round() / multiplier, 0.0);
-        assert_eq!((agent1_after.qreport.report_notsee * multiplier).round() / multiplier, -0.12);
-        assert_eq!((agent1_after.qreport.ignore_notsee * multiplier).round() / multiplier, 0.0);
-        assert_eq!(actions, Actions{actions:vec![Action::Compliant, Action::Violated]});
-        assert_eq!(report_state, ReportStates{states:vec![ReportState::ReportTrue, ReportState::ReportFalse]});
+        assert_eq!(agent0_after.count_violate,0);
+        assert_eq!(agent0_after.count_report_true,0);
+        assert_eq!(agent0_after.count_report_false,0);
+        assert_eq!(agent0_after.count_ignore,1);
+        assert_eq!(agent1_after.count_violate,1);
+        assert_eq!(agent1_after.count_report_true,0);
+        assert_eq!(agent1_after.count_report_false,0);
+        assert_eq!(agent1_after.count_ignore,0);
+    }
 
+    #[test]
+    fn test_none_case_violate_and_report() {
+        let mut params = Params::default();
+        params.mode = Mode::None;
+        let mut rng = StdRng::seed_from_u64(params.seed);
+        let mut agents_vec :Vec<Agent> = Vec::new();
+        for i in 0..params.n {
+            agents_vec.push(Agent::new(i, &mut rng));
+        }
+        let mut agents = Agents{agents:agents_vec};
+        let mut total_violate = 0;
+        let mut total_report = 0;
+        for i in 0..params.epochs {
+            let (actions, report_states) = round(&mut agents, &params, &mut rng);
+            if i >= 500 {
+                actions.actions.iter().for_each(|action| if action == &Action::Violated {total_violate += 1});
+                report_states.states.iter().for_each(|state| if state != &ReportState::Ignore {total_report += 1});
+                }
+            }
+        let violate_rate = total_violate as f64 / ((params.n * params.epochs) as f64  / 2.0);
+        let report_rate:f64 = total_report as f64 /  ((params.n * params.epochs) as f64 / 2.0);
+        // println!("violate: {}, rate: {}", total_violate, violate_rate);
+        // println!("report:  {}, rate: {}", total_report, report_rate);
+
+        assert!(violate_rate >0.83 && violate_rate < 0.87);
+        assert!(report_rate > 0.13 && report_rate < 0.17);
     }
 }
 

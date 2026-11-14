@@ -40,8 +40,9 @@ pub struct Agent{
     pub id: usize,
     pub qvalue: Qvalue,
     pub qreport: Qreport,
-    pub count_report: usize,
-    pub count_false_report:usize,
+    pub count_violate:usize,
+    pub count_report_true: usize,
+    pub count_report_false:usize,
     pub count_ignore:usize,
 }
 
@@ -49,22 +50,24 @@ impl Agent {
     pub fn new(id: usize, rng: &mut StdRng)  -> Self{
         let qvalue = Qvalue::new(rng);
         let qreport = Qreport::new(rng);
-        Agent{id: id, qvalue:qvalue,qreport:qreport, count_report:0, count_false_report:0, count_ignore:0}
+        Agent{id: id, qvalue:qvalue,qreport:qreport, count_violate:0, count_report_true:0, count_report_false:0, count_ignore:0}
     }
 
-    pub fn get_action(&self, params:&Params, rng: &mut StdRng) -> Action{
+    pub fn get_action(&mut self, params:&Params, rng: &mut StdRng) -> Action{
         let greedy_val:f64 = rng.random();
         let action = if greedy_val > 1.0 - params.epsilon {
             let random_val:f64 = rng.random();
             if random_val >= 0.5 {
                 Action::Compliant
             } else {
+                self.count_violate();
                 Action::Violated
             }
         } else {
             if self.qvalue.compliant_case > self.qvalue.violated_case {
                 Action::Compliant
             } else {
+                self.count_violate();
                 Action::Violated
             }
         };
@@ -78,25 +81,37 @@ impl Agent {
         }
     }
 
-    pub fn get_reaction(&self, params:&Params, observes:&Observes, rng:&mut StdRng) -> Reaction {
+    pub fn get_reaction(&mut self, params:&Params, observes:&Observes, rng:&mut StdRng) -> Reaction {
         let id = self.id;
         let observe_status = &observes.observes[id].observe_status;
         let greedy_val:f64 = rng.random();
         let reaction = if greedy_val > 1.0 - params.epsilon {
             let random_val:f64 = rng.random();
             if random_val >= 0.5 {
+                if observe_status == &ObserveStatus::See {
+                    self.count_report_true();
+                } else {
+                    self.count_report_false();
+                }
+                
                 Reaction::Report
             } else {
+                if observe_status == &ObserveStatus::See {
+                    self.count_ignore();
+                }
                 Reaction::Ignore    
             } 
         } else if &ObserveStatus::See == observe_status {
             if self.qreport.report_see >= self.qreport.ignore_see {
+                self.count_report_true();
                 Reaction::Report
             } else {
+                self.count_ignore();
                 Reaction::Ignore
             }
         } else {
             if self.qreport.report_notsee >= self.qreport.ignore_notsee {
+                self.count_report_false();
                 Reaction::Report
             } else {
                 Reaction::Ignore
@@ -128,26 +143,19 @@ impl Agent {
         }
     }
 
-    pub fn report(&mut self) {
-        self.count_report += 1;
+    pub fn count_violate(&mut self ){
+        self.count_violate += 1;
     }
 
-    pub fn false_report(&mut self) {
-        self.count_false_report += 1;
+    pub fn count_report_true(&mut self) {
+        self.count_report_true += 1;
+    }
+    pub fn count_report_false(&mut self) {
+        self.count_report_false += 1;
     }
 
-    pub fn ignore(&mut self) {
+    pub fn count_ignore(&mut self) {
         self.count_ignore += 1;
-    }
-    pub fn count_report(&self)->usize {
-        self.count_report
-    }
-    pub fn count_false_report(&self)->usize {
-        self.count_false_report
-    }
-
-    pub fn count_ignore(&self)->usize {
-        self.count_ignore
     }
 
 
@@ -159,15 +167,15 @@ pub struct Agents {
 }
 
 impl Agents {
-    pub fn get_actions(&self, params:&Params, rng: &mut StdRng) -> Actions{
-        let actions = self.agents.iter()
+    pub fn get_actions(&mut self, params:&Params, rng: &mut StdRng) -> Actions{
+        let actions = self.agents.iter_mut()
                     .map(|agent| agent.get_action(params,rng))
                     .collect();
         Actions{actions:actions}
     }
 
-    pub fn get_reactions(&self, params:&Params, observes:&Observes, rng:&mut StdRng) -> Reactions {
-        let reactions:Vec<Reaction> = self.agents.iter()
+    pub fn get_reactions(&mut self, params:&Params, observes:&Observes, rng:&mut StdRng) -> Reactions {
+        let reactions:Vec<Reaction> = self.agents.iter_mut()
                     .map(|agent| agent.get_reaction(params, observes, rng))
                     .collect();
         Reactions{reactions:reactions}
