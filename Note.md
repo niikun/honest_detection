@@ -24,3 +24,10 @@ Q値は Q += (reward - Q) * 0.1 で、そのときの報酬の方向に10%しか
 agent1はvioで、agent0がreport_trueで、agent1は通報されたためp_violを受けます。
 reward_actionが gain 1.0 - p_viol 3.0 = -2.0
 qvalueの更新が　(-2.0 - q_val_vio:1.0)*lr:0.1 + qval_vio:1.0 = 0.7 
+
+## self や Observes を値で受けると、なぜ2人目の呼び出しでエラーになるか
+所有権が動いてしまうから。それを防ぐために参照にする（&をつける）
+&mut は参照しながら変更できる。ただしひとつだけ
+
+
+

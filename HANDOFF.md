@@ -1,6 +1,6 @@
 # honest_detection 学習ハンドオフ
 
-作成: 2026-10-28 / 最終更新: 2026-11-14
+作成: 2026-10-28 / 最終更新: 2026-11-15
 目的: 検知共有×評判ネットワークのシミュレーションを**一から作り**、Rust（型・所有権・テスト）と設計力を身につける。最終的に Axum API + Lovable(React) まで（期限 2026-12-31）。
 関連: 秘書ノート `topics/verifiable-detection-reward-network.md`（構想）/ `topics/honest-detection-rust-api-roadmap.md`（ロードマップ）
 
@@ -133,9 +133,22 @@
   - 済: `get_report_reward` を3つの値に分けた: `reward_imm`（immediate / retro）、`reward_true_bonus`（retro だけ `r_true`）、`penalty_report_false`（retro だけ `p_false`）。本物＝`-cost + reward_imm + reward_true_bonus`、偽通報＝`-cost + reward_imm - penalty_report_false`。retro の期待値: 本物 1.1、偽通報 -0.9（以前は -1.2）
   - つまずきと解決: ①`ReportFalse` に `+ r_imm` をモードに関係なく足し、none でも入った → モードごとの変数に ②テストの `Retro` と `Immediate` を同じ `else` で扱っていた → 枝を分けた ③`round_float(rewards[2].0)` を2つ並べていた（2つ目は `.1`）④浮動小数点の `assert_eq!` は丸め（`round_float`）で対応。`test_round_see` の `agent1.report_notsee` は -0.09（(-0.9)×0.1）に更新
   - 積み残し: `get_rewards` の `Immediate` 用テスト（n=3 で retro と同じ3人の例）は、本人が「合格にして進める」と判断して省いた。`round` を immediate で回すテストも無し
-- 次の一歩（ステップ4 の締めとステップ5 の入口）:
-  1. `SPAM_P` の定義を決める（未決。今のコードでは `Notsee` で通報を選べば偽通報になり、`SPAM_P` は使っていない。必要か、必要なら何を決める確率か）
-  2. ステップ4 の締め: 「`self` / `Observes` を値で受けると、なぜ2人目の呼び出しでエラーになるか」を `Note.md` に自分の言葉で
+- 2026-11-15: **ステップ4 完了、ステップ5 途中（none の結果が出た）**（未コミット: `src/experiment.rs` 新規、`agent.rs`・`lib.rs`・`Note.md` 変更）
+  - 済: `SPAM_P` は使わない（偽通報は `qreport` の学習で出る）。`Note.md` に所有権の説明を記入（ステップ4 の締め）
+  - 済: ε を引数化。`Params` は `epsilon_start`（0.3）/`epsilon_end`（0.02）、`epochs` の既定値は 3000。`get_action` / `get_reaction` / `get_actions` / `get_reactions` / `round` が `epsilon` を引数で受ける。round のテストは `let epsilon = 0.0` に直した（`params.epsilon = 0.0` のままだと無効なのに、シード固定の偶然で通っていた）
+  - 済: `src/experiment.rs`（`run(&Mode, seed)` → `(Agents, Vec<Actions>, Vec<ReportStates>)`、`run_seeds(mode)` → 20シードの3指標。ファイル名は `experiment`、`run_n` と集計を同じファイルに置く。同じ20シードを3条件で使い回す＝差が `mode` の違いから出たと言える）。ε の式は `start - (start - end) / epochs * i`（最初の式は `epochs * i` で割っていて減衰しなかった）
+  - none の結果（3000ラウンド×20シード、末尾20%）: 違反率 約0.975（元 0.98）、総損害/R 約26.3（元 26.6）→ 合う。**偽通報は 約0.012/人/R（10人で約0.12/R）で、元の 0.4 の約1/3**。原因は未確認（`SPAM_P` を使わない方針との関係を疑う。ε が 0.02 まで下がると探索の通報が約 ε/2 × 見ない割合 ≈ 0.01/人 になる）
+  - つまずきと解決: ①`total_harms:f64 +=`（`:f64` は `let` でしか書けない。`sum::<f64>()`）②末尾の判定 `i >= 2400` が `epochs` 1000 のとき一度も真にならず全部 0.0 → `epochs` を 3000 に ③分母に `epochs`（3000）と `/0.8` を使い、数えたのは末尾600ラウンドだけで、違反率が 0.21 になった（直した）
+  - ~~`test_none_case_violate_and_report` が失敗中~~ → 解決（同日。原因: `epochs` を 3000 にしたのに、後半の判定が直書きの `i >= 500` のままだった。`params.epochs / 2` にして `cargo test` 18件成功）。教訓: 既定値を変えるときは、それに依存する直書きの数字を探す（`run` の `i >= 2400` も同じ種類）
+  - 済（夕方）: `run` の末尾判定を `epochs * 0.8` から出した。`run_seeds` の分母が `epochs / 5 * 4`（2400）で、保存した600ラウンドと食い違い違反率が 0.244（正しい値の1/4）になっていた → 直して none は 違反率 約0.975・総損害 約26.3 に戻った（`cargo test` 18件成功）。教訓: 集計の分母は「数えた対象の数」。`epochs` から別の式で出すより、保存した `Vec` の長さなど手元の値の方がずれない
+  - 未着手: immediate / retro の `run_seeds`（`mode` を変えて回す）、20シードの平均を取る、3条件の表（問い: 20個ずつの3つの `Vec` から表の1行をどう作るか。未回答）。`run_seeds` の `/600.0`（損害）は直書き。`run_seeds` の未使用変数（`seeds`・`agents`・`all_report` の扱い）。`run_seeds` が `Params::default()` を使うので、`run` 内の `params` と食い違う危険（`mode` で `get_harms` は変わらないが、`p_viol` などを変えるときに注意）
+- 次の一歩（ステップ5 の続き）:
+  0. `run_seeds` の分母（`/600.0`）を、保存した `Vec` の長さなど手元の値から出す
+  0.5 20シードの平均を取る → immediate / retro も回して、3条件の表を作る
+  0.75 none の偽通報/R が元の 0.4 より低い理由（約0.12）を、3条件を見比べてから考える（`SPAM_P` を使わない方針との関係）
+  1. ~~`SPAM_P` の定義を決める~~ → **使わない**と決めた（2026-11-15。偽通報は `qreport` の学習で出る。固定確率にしない方針は 11/04 の `report_p` と同じ）。「なぜ SPAM_P なしで immediate の偽通報が増えるか」の説明は本人がスキップ。ステップ5 の結果表で immediate の偽通報/R が増えるかを見て確かめる
+  2. ~~ステップ4 の締め~~ → 済（2026-11-15。`Note.md` に記入。「move 済みの値を使うとコンパイラが止める」の一文と、`&mut` は「同時に1つだけ」の続きは未記入のまま、本人の判断で合格。Book 4.2 の借用規則で後から補える）。**ステップ4 完了**
+  2.5 ステップ5 の設計（2026-11-15 決定）: `run_n` の戻り値は `(Agents, Vec<Actions>, Vec<ReportStates>)`（末尾20%の3指標を後から出す。総損害は保存した `Actions` から `get_harms`）。ε の線形減衰は、`Params` に開始値（`epsilon`）と終了値（`epsilon_end` = 0.02）を置き、`run_n` が `0.3 - round * (0.3 - 0.02) / 3000` の形で現在値を計算して、**引数で渡す**（`default()` で作り直すと `mode`・`seed` が消えるため不可）。影響: `get_action` / `get_reaction` / `get_actions` / `get_reactions` / `round` とテストの `epsilon = 0.0` が引数になる。**一度に直さず、1関数ずつテストを通しながら**（11/02 の教訓）
   3. ステップ5: 複数シード・複数ラウンドを回す `run_n`（3条件×20シードの平均の表）。結果表（違反率・偽通報/R・総損害/R）を元モデルと見比べる
 - amnesia との接続: 違反・通報・評判は Twin Towns にまだない。「この街で何を違反とするか」は未決（v0.1 の後で検討）
 - 見積もり（11/10 時点）: 部品は揃った（v0.1 の7割程度）。v0.1 まであと3〜4回（ラウンド関数1〜2回＋none のテストと `Immediate` 0.5〜1回＋ステップ5 1.5〜2回）
@@ -247,4 +260,4 @@ N人（N=10）が毎ラウンド「守る/違反する」を選ぶ。違反は�
 - ~~シードを `Params` に入れるか~~ → `Params` に入れた（ステップ3）
 - ~~`Params::default()` の `p_viol`~~ → モデルの値（3.0）にした。`test_run` が「罰なし」を使う箇所は `p_viol = 0.0` を明示（2026-11-07）
 - 乱数: `rand` 0.10 の API（`RngExt`）。`StdRng` + `SeedableRng::seed_from_u64` で固定済み（2026-10-30）
-- SPAM_P の正確な定義（用語集参照。**ステップ4 ③ の「報酬を決める」で決める**）
+- ~~SPAM_P の正確な定義~~ → 使わない（2026-11-15。偽通報は学習で出る）。用語集・変数一覧の SPAM_P は参考値として残す

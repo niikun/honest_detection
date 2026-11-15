@@ -2,6 +2,7 @@ use rand::rngs::StdRng;
 use rand::{RngExt, SeedableRng};
 mod agent;
 use agent::{Agent,Agents, Qvalue, Qreport};
+mod experiment;
 
 #[derive(Debug, Clone)]
 pub struct Params {
@@ -14,7 +15,8 @@ pub struct Params {
     pub learning_rate:f64,
     pub seed:u64,
     pub epochs:usize,
-    pub epsilon:f64,
+    pub epsilon_start:f64,
+    pub epsilon_end:f64,
     pub mode:Mode,
     pub r_true: f64,
     pub p_false: f64,
@@ -39,8 +41,9 @@ impl Default for Params {
             cost: 0.2, 
             learning_rate:0.1,
             seed:64,
-            epochs:1000, 
-            epsilon:0.3, 
+            epochs:3000, 
+            epsilon_start:0.3,
+            epsilon_end:0.02, 
             mode:Mode::None, 
             r_true:1.0, 
             p_false:1.0,
@@ -134,8 +137,9 @@ pub fn run(params:&mut Params) ->Qvalue{
     let mut count_violated = 0;
     let mut amount_compliant = 0.0;
     let mut count_compliant = 0;
+    let epsilon = 0.3;
     for i in 0..params.epochs{
-        let action = agent.get_action(params, &mut rng);
+        let action = agent.get_action(&mut rng, epsilon);
         let (reward_action, _ ) = get_reward(params, &action, &Reaction::Ignore, &mut rng);
         agent.update_qvalue(&params,&action, reward_action);
         if i >= params.epochs / 2 {
@@ -275,10 +279,10 @@ pub fn get_harms(params:&Params, actions: &Actions) -> Vec<f64> {
     }).collect()
 }
 
-pub fn round(agents: &mut Agents, params:&mut Params, rng: &mut StdRng) ->(Actions, ReportStates) {
-    let actions = agents.get_actions(params, rng);
+pub fn round(agents: &mut Agents, params:&mut Params, rng: &mut StdRng, epsilon:f64) ->(Actions, ReportStates) {
+    let actions = agents.get_actions(rng, epsilon);
     let observes:Observes = Observes::new(rng, params, &actions);
-    let reactions = agents.get_reactions(params,&observes, rng);
+    let reactions = agents.get_reactions(&observes, rng, epsilon);
     let report_states = set_report_states(&observes, &reactions);
     let rewards = get_rewards(params, &actions, &report_states, &observes);
     assert_eq!(params.n, agents.agents.len());
@@ -347,7 +351,8 @@ use super::*;
         let mut agent1 = Agent::new(0, &mut rng);
         let mut agent2 = Agent::new(1, &mut rng);
         let mut agents = Agents{agents:vec![agent1, agent2]};
-        let actions = agents.get_actions(&params, &mut rng);
+        let epsilon = 0.3;
+        let actions = agents.get_actions(&mut rng, epsilon);
         assert_eq!(actions.actions.len(),2);
     }
     #[test]
@@ -379,7 +384,7 @@ use super::*;
     fn test_get_reactions(){
         let mut params = Params::default();
         params.n = 4;
-        params.epsilon = 0.0;
+        let epsilon = 0.0;
         let mut rng = StdRng::seed_from_u64(params.seed);
         let mut agent1 = Agent::new(0, &mut rng);
         let mut agent2 = Agent::new(1, &mut rng);
@@ -398,7 +403,7 @@ use super::*;
         observes.observes[1].observe_status = ObserveStatus::See;
         observes.observes[2].observe_status = ObserveStatus::Notsee;
         observes.observes[3].observe_status = ObserveStatus::Notsee;
-        let reactions = agents.get_reactions(&params, &observes, &mut rng);
+        let reactions = agents.get_reactions(&observes, &mut rng, epsilon);
         assert_eq!(reactions.reactions.len(), 4);
         assert_eq!(reactions.reactions[0], Reaction::Report);
         assert_eq!(reactions.reactions[1], Reaction::Ignore);
@@ -604,7 +609,7 @@ use super::*;
         let mut params = Params::default();
         params.n = 2;
         params.detect_p = 0.0;
-        params.epsilon = 0.0;
+        let epsilon = 0.0;
         let mut rng = StdRng::seed_from_u64(params.seed);
         let mut q_report = Qreport{
             report_see:0.0,
@@ -656,9 +661,8 @@ use super::*;
         let rewards = get_rewards(&mut params, &actions, &report_states,&observes);
         for reward in rewards{
             // println!("reward_action:{}, reward_reaction: {}",reward.0,reward.1);
-
         }
-        let (actions, report_state) = round(&mut agents, &mut params, &mut rng);
+        let (actions, report_state) = round(&mut agents, &mut params, &mut rng, epsilon);
         // println!("actions:{:?}",actions);
         // println!("report_state: {:?}", report_state);
         let agent0_after = &agents.agents[0];
@@ -685,7 +689,7 @@ use super::*;
     fn test_round_see(){
         let mut params = Params::default();
         params.n = 2;
-        params.epsilon = 0.0;
+        let epsilon = 0.0;
         params.detect_p = 1.0;
         params.mode = Mode::Retro;
         let mut rng = StdRng::seed_from_u64(params.seed);
@@ -738,7 +742,7 @@ use super::*;
         };
 
         let rewards = get_rewards(&mut params, &actions, &report_states,&observes);
-          let (actions, report_state) = round(&mut agents, &mut params, &mut rng);
+        let (actions, report_state) = round(&mut agents, &mut params, &mut rng, epsilon);
         let agent0_after = &agents.agents[0];
         let agent1_after = &agents.agents[1];
         let multiplier = 1000.0;
@@ -771,7 +775,7 @@ use super::*;
     fn test_round_ignore_observestatus(){
         let mut params = Params::default();
         params.n = 2;
-        params.epsilon = 0.0;
+        let epsilon = 0.0;
         params.detect_p = 1.0;
         params.mode = Mode::Retro;
         let mut rng = StdRng::seed_from_u64(params.seed);
@@ -830,7 +834,7 @@ use super::*;
             println!("reward_action:{}, reward_reaction: {}",reward.0,reward.1);
 
         }
-        let (actions, report_state) = round(&mut agents, &mut params, &mut rng);
+        let (actions, report_state) = round(&mut agents, &mut params, &mut rng, epsilon);
         // println!("actions:{:?}",actions);
         // println!("report_state: {:?}", report_state);
         let agent0_after = &agents.agents[0];
@@ -858,9 +862,10 @@ use super::*;
         let mut agents = Agents{agents:agents_vec};
         let mut total_violate = 0;
         let mut total_report = 0;
+        let epsilon = 0.3;
         for i in 0..params.epochs {
-            let (actions, report_states) = round(&mut agents, &mut params, &mut rng);
-            if i >= 500 {
+            let (actions, report_states) = round(&mut agents, &mut params, &mut rng, epsilon);
+            if i >= params.epochs / 2 {
                 actions.actions.iter().for_each(|action| if action == &Action::Violated {total_violate += 1});
                 report_states.states.iter().for_each(|state| if state != &ReportState::Ignore {total_report += 1});
                 }

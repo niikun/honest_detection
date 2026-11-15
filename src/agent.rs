@@ -1,3 +1,5 @@
+use std::f64::consts::E;
+
 use rand::rngs::StdRng;
 use rand::{RngExt};
 use crate::{Action, Actions, Observes, ObserveStatus, Params, Reaction, Reactions};
@@ -53,9 +55,9 @@ impl Agent {
         Agent{id: id, qvalue:qvalue,qreport:qreport, count_violate:0, count_report_true:0, count_report_false:0, count_ignore:0}
     }
 
-    pub fn get_action(&mut self, params:&Params, rng: &mut StdRng) -> Action{
+    pub fn get_action(&mut self , rng: &mut StdRng, epsilon:f64) -> Action{
         let greedy_val:f64 = rng.random();
-        let action = if greedy_val > 1.0 - params.epsilon {
+        let action = if greedy_val > 1.0 - epsilon {
             let random_val:f64 = rng.random();
             if random_val >= 0.5 {
                 Action::Compliant
@@ -81,11 +83,11 @@ impl Agent {
         }
     }
 
-    pub fn get_reaction(&mut self, params:&Params, observes:&Observes, rng:&mut StdRng) -> Reaction {
+    pub fn get_reaction(&mut self, observes:&Observes, rng:&mut StdRng, epsilon:f64) -> Reaction {
         let id = self.id;
         let observe_status = &observes.observes[id].observe_status;
         let greedy_val:f64 = rng.random();
-        let reaction = if greedy_val > 1.0 - params.epsilon {
+        let reaction = if greedy_val > 1.0 - epsilon {
             let random_val:f64 = rng.random();
             if random_val >= 0.5 {
                 if observe_status == &ObserveStatus::See {
@@ -167,16 +169,16 @@ pub struct Agents {
 }
 
 impl Agents {
-    pub fn get_actions(&mut self, params:&Params, rng: &mut StdRng) -> Actions{
+    pub fn get_actions(&mut self, rng: &mut StdRng, epsilon:f64) -> Actions{
         let actions = self.agents.iter_mut()
-                    .map(|agent| agent.get_action(params,rng))
+                    .map(|agent| agent.get_action(rng, epsilon))
                     .collect();
         Actions{actions:actions}
     }
 
-    pub fn get_reactions(&mut self, params:&Params, observes:&Observes, rng:&mut StdRng) -> Reactions {
+    pub fn get_reactions(&mut self, observes:&Observes, rng:&mut StdRng, epsilon:f64) -> Reactions {
         let reactions:Vec<Reaction> = self.agents.iter_mut()
-                    .map(|agent| agent.get_reaction(params, observes, rng))
+                    .map(|agent| agent.get_reaction( observes, rng, epsilon))
                     .collect();
         Reactions{reactions:reactions}
     }
