@@ -69,7 +69,7 @@ mod tests{
     #[test]
     fn test_run_n() {
         let mode = Mode::None;
-        let (all_mean_violated, all_mean_report_false, all_mean_harms) = run_seeds(mode);
+        let (all_mean_violated, all_mean_report_false, all_mean_harms) = run_seeds(&mode);
         println!("violated_rate:     {:?}", all_mean_violated);
         println!("report_false_rate: {:?}", all_mean_report_false);
         println!("all_harms_rate:    {:?}", all_mean_harms );
