@@ -27,7 +27,7 @@ pub fn run(mode:&Mode, seed:u64) ->(Agents, Vec<Actions>, Vec<ReportStates>){
     (agents, all_actions, all_report_states)
 }
 
-pub fn run_seeds(mode:Mode)->(Vec<f64>, Vec<f64>, Vec<f64>){
+pub fn run_seeds(mode:&Mode)->(Vec<f64>, Vec<f64>, Vec<f64>){
     let mut params = Params::default();
     let seeds:Vec<i32> = Vec::new();
     let mut all_mean_violated = Vec::new();

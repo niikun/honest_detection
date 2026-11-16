@@ -1,8 +1,8 @@
 use rand::rngs::StdRng;
 use rand::{RngExt, SeedableRng};
-mod agent;
+pub mod agent;
 use agent::{Agent,Agents, Qvalue, Qreport};
-mod experiment;
+pub mod experiment;
 
 #[derive(Debug, Clone)]
 pub struct Params {
