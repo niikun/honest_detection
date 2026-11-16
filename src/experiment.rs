@@ -53,7 +53,8 @@ pub fn run_seeds(mode:Mode)->(Vec<f64>, Vec<f64>, Vec<f64>){
                                             count_report_false += 1;
                                         }
                                     }));
-        let record_num = (params.epochs /5) as f64;
+        assert_eq!(all_actions.len(), all_report.len());
+        let record_num = all_report.len() as f64;
         all_mean_violated.push(count_violated as f64/record_num / params.n as f64 );
         all_mean_report_false.push(count_report_false as f64/record_num / params.n as f64);        
         all_mean_harms.push(total_harms as f64/record_num);
@@ -71,7 +72,8 @@ mod tests{
         let (all_mean_violated, all_mean_report_false, all_mean_harms) = run_seeds(mode);
         println!("violated_rate:     {:?}", all_mean_violated);
         println!("report_false_rate: {:?}", all_mean_report_false);
-        println!("all_harms_rate:    {:?}", all_mean_harms )
+        println!("all_harms_rate:    {:?}", all_mean_harms );
+        all_mean_violated.iter().for_each(|value| assert!(*value<=1.0 && *value>=0.95 ));
     }
 }
 

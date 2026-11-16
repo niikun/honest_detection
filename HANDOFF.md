@@ -1,6 +1,6 @@
 # honest_detection 学習ハンドオフ
 
-作成: 2026-10-28 / 最終更新: 2026-11-15
+作成: 2026-10-28 / 最終更新: 2026-11-16
 目的: 検知共有×評判ネットワークのシミュレーションを**一から作り**、Rust（型・所有権・テスト）と設計力を身につける。最終的に Axum API + Lovable(React) まで（期限 2026-12-31）。
 関連: 秘書ノート `topics/verifiable-detection-reward-network.md`（構想）/ `topics/honest-detection-rust-api-roadmap.md`（ロードマップ）
 
@@ -113,27 +113,27 @@
   - 済: `round(agents: &mut Agents, params, rng) -> (Actions, ReportStates)`
   - つまずきと解決: ①`.map(...)` だけでは何も実行されない（イテレータは遅延評価。Book 13.2）→ `for_each`、最終的には `for i in 0..params.n` と添字に（長い `zip` の連鎖より読みやすい）②`iter_mut()` の要素 `&mut Agent` に対してパターン `&mut agent` は move しようとする（`Agent` は `Copy` でない）→ 添字で `agents.agents[i]` を借りる形で回避
   - 注意: `params.n` と `agents.agents.len()` が違うと範囲外でパニック（先頭で `assert_eq!` か、`0..agents.agents.len()` に）。`Agent` のカウンタ（`report` / `false_report` / `ignore`）の更新はまだ無い。ステップ5で `ReportStates` から数えるなら不要、`Agent` のカウンタを使うならここで足す → **どちらにするか決める**
-- 2026-11-12: **`round` の最初のテスト完了**（`cargo test` 14件成功。`5f2a304` まではコミット済み、最後の整理分は未コミット）
+- 2026-11-12: **`round` の最初のテスト完了**（`cargo test` 14件成功。コミット済み）
   - 方針: A（`round` を実際に呼び、返り値と Q値の**つじつま**を確かめる）に決着。乱数に頼らず場面を決めるには、**初期値で固定**する: `epsilon = 0.0`（探索なし）、`detect_p = 0.0`（誰も `See` にならない）、`Qvalue` / `Qreport` の大小で行動・反応を狙う。手で作った `actions` 等は `round` に渡せない（`round` が中で作る）ので、前半の手作り部分は `round` の確認には不要
   - 済: `test_round`（n=2）。`agent0` は Q値が引き分け → `get_action` の `>` が偽で **`Violated`**（引き分けは `Violated` 側）、`Qreport` 引き分けは `>=` で **`Report`** → 偽通報。`agent1` は `compliant_case = 1.0` で守る、`ignore_notsee = 1.0` で**無視**。期待値: `agent0.violated_case` = 0.1（報酬 `gain` ×0.1）、`agent0.report_notsee` = -0.02（`-cost` ×0.1）、`agent1.compliant_case` = 0.9、`agent1.ignore_notsee` = 0.9（**無視は `-cost` がかからない**＝報酬 0.0）。選ばなかった枝は全部動かない。戻り値も `assert_eq!`（`actions == [Violated, Compliant]`、`report_state == [ReportFalse, Ignore]`）
   - つまずきと解決: ①`params` を作る前に `params.seed` を使った ②期待値が前の設定（罰を受ける場面）のまま残っていた → 今の設定で `round` の中を追って計算し直した ③`ignore_see + multiplier` の `+` の打ち間違い（`*` にする） ④`agent1` の期待値 0.88 → 無視の報酬は 0.0 なので 0.9（`get_report_reward` の `Ignore => 0.0`）⑤`Agent` を `Copy` にしない理由: 暗黙の複製で、更新したのに元が変わらないバグが起きやすい。`Clone`（明示的な `.clone()`）で十分
   - 残る（任意）: 前半の手作りの `actions` / `reactions` / `report_states` / `observes` / `get_rewards` と `println!` の整理。`Agent { ... }` の2人分の重複（`Agent::new` + 上書き）。同じ丸めの式を小さな関数に
-- 2026-11-13: **`See` を起こす場面の `round` のテスト完了**（`cargo test` 15件成功。未コミット）
+- 2026-11-13: **`See` を起こす場面の `round` のテスト完了**（`cargo test` 15件成功。コミット済み）
   - 済: `test_round_see`（n=2、`epsilon = 0.0`、`detect_p = 1.0`、retro）。agent0 は守る・`report_see` が大きいので、agent1 の違反を `See` して `ReportTrue`。agent1 は違反（`violated_case` が大きい）・`Notsee` で `Report` → `ReportFalse`。期待値: agent1 の `violated_case` = 0.7（報酬 `gain - p_viol` = -2.0 → `(-2.0 - 1.0) * 0.1 + 1.0`）、agent0 の `report_see` = 0.98（`-cost + r_true`）、agent1 の `report_notsee` = -0.12（`-cost - p_false`）、agent0 の `compliant_case` = 0.45（守った報酬 0.0 に向かって動く）
   - つまずきと解決: 期待値の `0.0` は「Q値が初期値から動かない」前提だった。実際は選んだ行動のQ値は報酬の方向に10%動き、選ばなかった枝は初期値のまま（初期値が 0.5 なら 0.5）。`round` の中を追って計算し直した。`Note.md` に agent1 が 0.7 になる計算を記録
   - 任意: `params.epsilon = 0.0` の重複、`get_rewards` と `println!` の整理（`test_round` と同じく）
-- 2026-11-14: **カウンタの決定と none のテスト完了**（`cargo test` 17件成功。未コミット）
+- 2026-11-14: **カウンタの決定と none のテスト完了**（`cargo test` 17件成功。コミット済み）
   - 決まったこと: ステップ5の3指標は `round` の戻り値から数える（違反率＝`Actions` の `Violated`、偽通報/R＝`ReportStates` の `ReportFalse`、総損害/R＝`get_harms` の合計）。`Agent` のカウンタは集計には要らないが、**評判の材料（犯罪歴・虚言癖・無関心）として残す**（本人の発案。台帳→評判のフェーズで使う）
   - 済: `Agent` に `count_violate` / `count_report_true` / `count_report_false` / `count_ignore` を追加（`ReportState` の名前に揃えた）。選んだ瞬間に `get_action` / `get_reaction`（`&mut self`）の中で数える。**無関心は `See` × `Ignore` だけ数える**（見ていない無視は当然なので数えない）。ゲッターは消し、フィールドを直接読む
   - テスト: `test_round_see`（`report_true` / `report_false` / `violate`）、`test_round_ignore_observestatus`（`See` × `Ignore` は数え、`Notsee` × `Ignore` は数えない）、`test_none_case_violate_and_report`（n=10、1000ラウンドの後半500。通報の割合 0.13〜0.17、違反率 0.83〜0.87。実測 0.151 / 0.8388）
   - 分かったこと: ε-greedy では、貪欲な選択が `Ignore` でも、探索で `ε × 0.5` だけ通報が残る（ε=0.3 で 0.15）。違反率の理論値は 1 − ε/2 = 0.85（罰で違反Qが一時的に下がるので、実測は少し低い）。retro でも、違反が減ると `See` が減り、通報の割合は 0.15 に近づく → **3条件の違いは通報の割合ではなく、違反率と偽通報/R に出る**
   - 残る（任意）: `get_action` / `get_reaction` が数える副作用を持つ点（同じ `Agent` で2回呼ぶと2回数える）。`test_none_case_violate_and_report` の未使用の `all_actions` / `all_report_states`、`i >= 500` を `epochs / 2` から出す
-- 2026-11-14 後半: **`Mode::Immediate` の報酬を実装**（`cargo test` 17件成功。未コミット）
+- 2026-11-14 後半: **`Mode::Immediate` の報酬を実装**（`cargo test` 17件成功。コミット済み）
   - 決まったこと: **`r_imm`（通報の瞬間にもらう額）は immediate と retro だけ**（none は0）。retro は「即時の `r_imm` ＋ 後で照合」（元の構想「検知したら即共有→軽い報酬→あとで照合」に合う）。immediate は真偽を確かめないので、本物も偽通報も `r_imm - cost`（0.1）
   - 済: `get_report_reward` を3つの値に分けた: `reward_imm`（immediate / retro）、`reward_true_bonus`（retro だけ `r_true`）、`penalty_report_false`（retro だけ `p_false`）。本物＝`-cost + reward_imm + reward_true_bonus`、偽通報＝`-cost + reward_imm - penalty_report_false`。retro の期待値: 本物 1.1、偽通報 -0.9（以前は -1.2）
   - つまずきと解決: ①`ReportFalse` に `+ r_imm` をモードに関係なく足し、none でも入った → モードごとの変数に ②テストの `Retro` と `Immediate` を同じ `else` で扱っていた → 枝を分けた ③`round_float(rewards[2].0)` を2つ並べていた（2つ目は `.1`）④浮動小数点の `assert_eq!` は丸め（`round_float`）で対応。`test_round_see` の `agent1.report_notsee` は -0.09（(-0.9)×0.1）に更新
   - 積み残し: `get_rewards` の `Immediate` 用テスト（n=3 で retro と同じ3人の例）は、本人が「合格にして進める」と判断して省いた。`round` を immediate で回すテストも無し
-- 2026-11-15: **ステップ4 完了、ステップ5 途中（none の結果が出た）**（未コミット: `src/experiment.rs` 新規、`agent.rs`・`lib.rs`・`Note.md` 変更）
+- 2026-11-15: **ステップ4 完了、ステップ5 途中（none の結果が出た）**（`4c3b93b` でコミット済み。`src/experiment.rs` 新規）
   - 済: `SPAM_P` は使わない（偽通報は `qreport` の学習で出る）。`Note.md` に所有権の説明を記入（ステップ4 の締め）
   - 済: ε を引数化。`Params` は `epsilon_start`（0.3）/`epsilon_end`（0.02）、`epochs` の既定値は 3000。`get_action` / `get_reaction` / `get_actions` / `get_reactions` / `round` が `epsilon` を引数で受ける。round のテストは `let epsilon = 0.0` に直した（`params.epsilon = 0.0` のままだと無効なのに、シード固定の偶然で通っていた）
   - 済: `src/experiment.rs`（`run(&Mode, seed)` → `(Agents, Vec<Actions>, Vec<ReportStates>)`、`run_seeds(mode)` → 20シードの3指標。ファイル名は `experiment`、`run_n` と集計を同じファイルに置く。同じ20シードを3条件で使い回す＝差が `mode` の違いから出たと言える）。ε の式は `start - (start - end) / epochs * i`（最初の式は `epochs * i` で割っていて減衰しなかった）
@@ -142,17 +142,20 @@
   - ~~`test_none_case_violate_and_report` が失敗中~~ → 解決（同日。原因: `epochs` を 3000 にしたのに、後半の判定が直書きの `i >= 500` のままだった。`params.epochs / 2` にして `cargo test` 18件成功）。教訓: 既定値を変えるときは、それに依存する直書きの数字を探す（`run` の `i >= 2400` も同じ種類）
   - 済（夕方）: `run` の末尾判定を `epochs * 0.8` から出した。`run_seeds` の分母が `epochs / 5 * 4`（2400）で、保存した600ラウンドと食い違い違反率が 0.244（正しい値の1/4）になっていた → 直して none は 違反率 約0.975・総損害 約26.3 に戻った（`cargo test` 18件成功）。教訓: 集計の分母は「数えた対象の数」。`epochs` から別の式で出すより、保存した `Vec` の長さなど手元の値の方がずれない
   - 未着手: immediate / retro の `run_seeds`（`mode` を変えて回す）、20シードの平均を取る、3条件の表（問い: 20個ずつの3つの `Vec` から表の1行をどう作るか。未回答）。`run_seeds` の `/600.0`（損害）は直書き。`run_seeds` の未使用変数（`seeds`・`agents`・`all_report` の扱い）。`run_seeds` が `Params::default()` を使うので、`run` 内の `params` と食い違う危険（`mode` で `get_harms` は変わらないが、`p_viol` などを変えるときに注意）
+- 2026-11-16: **`run_seeds` の分母を手元の値に**（`cargo test` 18件成功。`src/experiment.rs` は未コミット）
+  - 済: 分母を `all_report.len()`（保存した `Vec` の長さ）に。`assert_eq!(all_actions.len(), all_report.len())` で前提をコードに残した。`test_run_n` に「20シードすべてで違反率が 0.95〜1.0」の `assert` を追加（表示だけのテストではなくなった）。結果は変わらず（none: 違反率 0.969〜0.979、総損害/R 26.1〜26.4）
+  - 任意: 総損害/R にも範囲の `assert`（25〜28 など）。範囲の根拠（元モデルの値と実測）をコメントに
+  - **答えかけの問い（偽通報/R の謎）**: 今のモデルは各自が1ラウンドに1人だけ見る（11/01 の決定）。N=10 で1ラウンドに起こりうる偽通報の最大数は？（本人の答えは「9」→ 全員が守ったラウンドで10人全員が `Report` したら？ 偽通報は違反者がいなくても起きる）。それを元モデルの **immediate の偽通報/R = 22.5** と比べると、元モデルの「見る」の仕組みについて何が分かるか？（none の 0.12 と 0.4 の差の原因にもつながる）
 - 次の一歩（ステップ5 の続き）:
-  0. `run_seeds` の分母（`/600.0`）を、保存した `Vec` の長さなど手元の値から出す
-  0.5 20シードの平均を取る → immediate / retro も回して、3条件の表を作る
-  0.75 none の偽通報/R が元の 0.4 より低い理由（約0.12）を、3条件を見比べてから考える（`SPAM_P` を使わない方針との関係）
-  1. ~~`SPAM_P` の定義を決める~~ → **使わない**と決めた（2026-11-15。偽通報は `qreport` の学習で出る。固定確率にしない方針は 11/04 の `report_p` と同じ）。「なぜ SPAM_P なしで immediate の偽通報が増えるか」の説明は本人がスキップ。ステップ5 の結果表で immediate の偽通報/R が増えるかを見て確かめる
-  2. ~~ステップ4 の締め~~ → 済（2026-11-15。`Note.md` に記入。「move 済みの値を使うとコンパイラが止める」の一文と、`&mut` は「同時に1つだけ」の続きは未記入のまま、本人の判断で合格。Book 4.2 の借用規則で後から補える）。**ステップ4 完了**
-  2.5 ステップ5 の設計（2026-11-15 決定）: `run_n` の戻り値は `(Agents, Vec<Actions>, Vec<ReportStates>)`（末尾20%の3指標を後から出す。総損害は保存した `Actions` から `get_harms`）。ε の線形減衰は、`Params` に開始値（`epsilon`）と終了値（`epsilon_end` = 0.02）を置き、`run_n` が `0.3 - round * (0.3 - 0.02) / 3000` の形で現在値を計算して、**引数で渡す**（`default()` で作り直すと `mode`・`seed` が消えるため不可）。影響: `get_action` / `get_reaction` / `get_actions` / `get_reactions` / `round` とテストの `epsilon = 0.0` が引数になる。**一度に直さず、1関数ずつテストを通しながら**（11/02 の教訓）
-  3. ステップ5: 複数シード・複数ラウンドを回す `run_n`（3条件×20シードの平均の表）。結果表（違反率・偽通報/R・総損害/R）を元モデルと見比べる
+  1. 上の問い（偽通報の最大数と 22.5）に答える。元モデルと「見る」の仕組みが違うなら、合わせるか、違いを理由として結果表に書き添えるかを決める
+  2. immediate / retro も `run_seeds` で回す（同じ20シードを使い回す）
+  3. 20シードの平均を取り、3条件の表（違反率・偽通報/R・総損害/R）を作る。問い: 20個ずつの3つの `Vec` から表の1行をどう作るか（未回答）。表を出すのは `main.rs` か テストの `--nocapture` か
+  4. 結果表を元モデルと見比べる。immediate の偽通報/R が増えるか（SPAM_P なしで増える理由の説明はここで）
+  - 残る（任意）: `run_seeds` の未使用変数（`seeds`・`agents`）、`run_seeds` が `Params::default()` を使うので `run` 内の `params` と食い違う危険（`p_viol` などを変えるとき）、警告の整理
+  - 決定済みの記録（旧「次の一歩」から）: `SPAM_P` は使わない（11/15）／ステップ4 完了（11/15）／`run` の戻り値 `(Agents, Vec<Actions>, Vec<ReportStates>)` と ε を引数で渡す設計（11/15）
 - amnesia との接続: 違反・通報・評判は Twin Towns にまだない。「この街で何を違反とするか」は未決（v0.1 の後で検討）
-- 見積もり（11/10 時点）: 部品は揃った（v0.1 の7割程度）。v0.1 まであと3〜4回（ラウンド関数1〜2回＋none のテストと `Immediate` 0.5〜1回＋ステップ5 1.5〜2回）
-- 見積もり（11/14 夜に見直し）: `Immediate` の報酬まで済み、ステップ4 は締めの `Note.md` だけ。残りは `SPAM_P`（決めるだけ）＋ステップ5（1.5〜2回）で、v0.1 まであと2回弱。進み具合は v0.1 の8割強。以下は11/14 昼の見積もり:以下は11/13 の見積もり: `round` の2つのテスト（`See` の場面を含む）が済んだ。ステップ4 の残りはカウンタの決定と none の通報ゼロのテスト（0.5回程度）。v0.1 の進み具合は変わらず7割強〜8割弱。（11/12 は「`See` の場面のテストと none の通報ゼロのテスト 0.5〜1回」）以下は11/12 の見積もり: v0.1 まであと2〜3回（＋`Immediate` 0.5回＋ステップ5 1.5〜2回）。進み具合は v0.1 の7割強〜8割弱。（11/11 は「あと2〜4回」）結果表に合わせる調整と `SPAM_P` は外れやすい。（11/10 は「あと3〜4回」、11/5 は「あと5〜8回」）11/12〜12/10 は応用編2と並走。年内の範囲（v0.1＋API の最初の口まで、など）はステップ4終了時に見直す
+- 見積もり（11/16 時点）: ステップ4 完了、ステップ5 は none の結果まで（v0.1 の8〜9割）。残りは偽通報の謎の整理＋3条件の表（1〜2回）。元モデルとの「見る」の仕組みの違いを合わせる場合は +1回。11/12〜12/10 は応用編2と並走。年内の範囲（v0.1＋API の最初の口まで、など）は v0.1 の後に見直す
+  - これまでの推移: 11/05「あと5〜8回」→ 11/08「3〜5回」→ 11/10「3〜4回」→ 11/11「2〜4回」→ 11/14「2回弱」
 
 ## 参考実装（見るのは各ステップを書き終えてから）
 
