@@ -161,7 +161,7 @@ pub fn run(params:&mut Params) ->Qvalue{
 pub fn get_reward(params:&mut Params,action:&Action, reaction:&Reaction, rng: &mut StdRng) -> (f64, f64) {
     if params.mode == Mode::None {
         params.r_imm = 0.0;
-    }
+    } 
     let random_num:f64 = rng.random();
     let reward_action = if action == &Action::Violated {
         if random_num <= params.detect_p {
@@ -200,6 +200,11 @@ pub fn get_report_reward(params:&Params, report_states:&ReportStates, observes:&
     } else {
         0.0
     };
+    let p_viol = if params.mode == Mode::Retro {
+        params.p_viol
+    } else {
+        0.0
+    };
     // 後で照合して本物だったときの上乗せ。retro だけ
     let reward_true_bonus: f64 = if params.mode == Mode::Retro {
         params.r_true
@@ -232,7 +237,7 @@ pub fn get_report_reward(params:&Params, report_states:&ReportStates, observes:&
     }
     let observed_rewards:Vec<f64> = observed.iter()
             .map(|o| {
-                if *o { - params.p_viol } else { 0.0 }
+                if *o { - p_viol } else { 0.0 }
             }).collect::<Vec<f64>>();
     observer_rewards.iter().zip(observed_rewards.iter())
     .map(|(observer,observed)| (*observer,*observed))
@@ -293,8 +298,6 @@ pub fn round(agents: &mut Agents, params:&mut Params, rng: &mut StdRng, epsilon:
     }
     (actions, report_states)
 }
-
-
 
 pub fn choose_action(qvalue:&Qvalue)->Action {
     let action = if qvalue.violated_case >= qvalue.compliant_case {
@@ -496,12 +499,12 @@ use super::*;
             if params.mode == Mode::None{
                 assert_eq!(rewards[0],(- params.cost, 0.0));
                 assert_eq!(rewards[1],(0.0, 0.0));
-                assert_eq!(rewards[2],(- params.cost, -params.p_viol));
+                assert_eq!(rewards[2],(- params.cost, 0.0));
             } else if params.mode == Mode::Immediate {
                 // 真偽は確かめないので、本物も偽通報も同じ（r_imm - cost）
                 assert_eq!((round_float(rewards[0].0),round_float(rewards[0].1)),(round_float(- params.cost + params.r_imm), 0.0));
                 assert_eq!(rewards[1],(0.0, 0.0));
-                assert_eq!((round_float(rewards[2].0),round_float(rewards[2].1)),(round_float(- params.cost + params.r_imm), -params.p_viol));
+                assert_eq!((round_float(rewards[2].0),round_float(rewards[2].1)),(round_float(- params.cost + params.r_imm), 0.0));
             } else {
                 // retro: 本物は r_true の上乗せ、偽通報は p_false の罰
                 assert_eq!((round_float(rewards[0].0),round_float(rewards[0].1)),(round_float(params.r_true - params.cost + params.r_imm), 0.0));
@@ -564,7 +567,7 @@ use super::*;
         };
         let rewards = get_rewards(&mut params, &actions, &report_states, &observes);
         assert_eq!(rewards[0], (0.0, - params.cost));
-        assert_eq!(rewards[1], (params.gain - params.p_viol, -params.cost));
+        assert_eq!(rewards[1], (params.gain , -params.cost));
         assert_eq!(rewards[2], (params.gain, 0.0));
     }
     #[test]
