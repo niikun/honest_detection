@@ -37,3 +37,17 @@ qvalueの更新が　(-2.0 - q_val_vio:1.0)*lr:0.1 + qval_vio:1.0 = 0.7
 p_violが3.0とviolatedしたときのgainより、マイナスが多い
 通報側もreport Trueの報酬があり、通報するメリットがある
 虚偽の通報はマイナスになるので、メリットがない
+
+# Step02
+## 台帳に持つ値
+    - name reported
+        - 情報　通報されたかどうか　bool
+        - 主張
+    - name proof
+        - 情報　証拠があるかどうか　bool
+        - 確定
+    - name is_gilty
+        - 情報　有罪かどうか　bool
+        - その結果
+    
+
