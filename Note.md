@@ -40,14 +40,30 @@ p_violが3.0とviolatedしたときのgainより、マイナスが多い
 
 # Step02
 ## 台帳に持つ値
-    - name reported
-        - 情報　通報されたかどうか　bool
-        - 主張
-    - name proof
-        - 情報　証拠があるかどうか　bool
-        - 確定
-    - name is_gilty
-        - 情報　有罪かどうか　bool
-        - その結果
+    - name events
+        - 情報　Vec<
+        struct Event{round:usize, kind:EventType}
+        enum EventType Report:Report,
+                        Reward:Reward,
+                        Judge:Judge
+        struct Report {
+            observer:usize,
+            observed:usize
+        }
+        struct Reward {
+            who:usize,
+            reward:float
+        }
+        struct Judge {
+            observer:usize,
+            observed:usize,
+            is_guilty:bool
+        }
+
+## 台帳で公開するもの　read, append
+## 公開しないもの　write,delete,events
+- &[Event]を返すのは変更できないようにするため
+- readは&self appendは&mut self read->append 
+    
     
 

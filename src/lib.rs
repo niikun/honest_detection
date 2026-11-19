@@ -3,6 +3,7 @@ use rand::{RngExt, SeedableRng};
 pub mod agent;
 use agent::{Agent,Agents, Qvalue, Qreport};
 pub mod experiment;
+pub mod ledger;
 
 #[derive(Debug, Clone)]
 pub struct Params {

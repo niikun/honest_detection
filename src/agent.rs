@@ -1,5 +1,3 @@
-use std::f64::consts::E;
-
 use rand::rngs::StdRng;
 use rand::{RngExt};
 use crate::{Action, Actions, Observes, ObserveStatus, Params, Reaction, Reactions};
