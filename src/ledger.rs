@@ -1,11 +1,11 @@
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy,PartialEq)]
 pub struct Event{
     pub round:usize,
     pub kind:EventType
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum EventType {
     Report{observer:usize, observed:usize},
     Reward{who:usize, reward:f64},
@@ -13,7 +13,7 @@ pub enum EventType {
 }
 
 #[derive(Debug, Clone)]
-pub struct Events{
+pub struct Ledger{
     events:Vec<Event>
 }
 
@@ -26,19 +26,17 @@ impl Event {
     }
 }
 
-impl Events{
+impl Ledger{
+    pub fn new() -> Self {
+        Ledger{
+            events:Vec::new()
+        }
+    }
     pub fn read(&self) -> &[Event] {
-        let events_vec: Vec<&Event> = self.events.iter()
-                .map(|event| event.clone())
-                .collect();
-        &events_vec
+        &self.events
     }
 
     pub fn append(&mut self, event:Event) {
         self.events.push(event)
-    }
-
-    fn write() {
-
     }
 }
