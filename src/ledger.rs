@@ -14,7 +14,7 @@ pub enum EventType {
 
 #[derive(Debug, Clone)]
 pub struct Ledger{
-    events:Vec<Event>
+    pub events:Vec<Event>
 }
 
 impl Event {
@@ -39,4 +39,41 @@ impl Ledger{
     pub fn append(&mut self, event:Event) {
         self.events.push(event)
     }
+}
+
+#[cfg(test)]
+mod tests{
+    use super::*;
+    #[test]
+    fn test_read() {
+        let event1 = Event::new(
+            0,
+            EventType::Report{observer:0,observed:1}
+        );
+        let event2 = Event::new(
+            1,
+            EventType::Judge{observer:0, observed:1, is_guilty:true}
+        );
+        let event3 = Event::new(
+            2,
+            EventType::Reward{who:0, reward:1.1}
+        );
+        let event4 = Event::new(
+            3,
+            EventType::Reward{who:1,reward:-2.0}
+        );
+        let mut ledger = Ledger::new();
+        let events = vec![event1, event2, event3, event4];
+        events.clone().into_iter().enumerate()
+        .for_each(|(i, e)| {
+            ledger.append(e);
+            for j in 0..=i{
+                assert_eq!(ledger.read()[j], events[j]);
+            }
+        });
+        let records = ledger.read();
+        // println!("{:?}",records);
+    }
+
+
 }
