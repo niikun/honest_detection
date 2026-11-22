@@ -215,8 +215,15 @@
   - 分かったこと（非公開）: Rust の非公開は**モジュール単位**。子モジュール（`tests`）は親の非公開フィールドに触れる（`use super::*` は名前の近道で、理由ではない）。外のモジュール（`experiment.rs` など）からは `ledger.events` はコンパイルエラー。「書き換えない」を守る本体は、テストよりも、非公開フィールド＋`&mut` を返さない設計（Book 7.3）
   - 任意: `test_read` の `println!` と最後の4行（ループと重複）の整理。`Ledger::default()`（clippy の `new_without_default`）。空の台帳を読むテスト。`Event` のフィールドの `pub`（台帳に足した後でも外から書き換えられる。`Copy` なので `read()` の `&Event` からは直接書き換えられないが、`Event` を取り出して作り直すことはできる。非公開にして読むメソッドを作るかは未決）
   - 未確認: `Note.md` の「公開するもの／しないもの」「`&[Event]` を返す理由」「`&self` と `&mut self`」（11/19 に依頼）。「変更できないようにするため」のまま残っていたら、「中身が `Vec` であることを外に見せないため」に直す
+- 2026-11-22: **照合の切り出し（`Verify` トレイトと `SimVerifier`）が動いた**（`cargo test` 21件のはず。`src/ledger.rs`・`src/lib.rs` は未コミット。**未コミットのまま休憩**）
+  - 決まったこと（紙の設計）: ①照合の材料に神さまの値（`actions`・`ObserveStatus`）を使うのは、台帳（`Ledger`）の外に出した受け口だけ。台帳は `Verify` トレイトだけを知る ②**後で証拠（ZK の検証結果・Twin Towns の台帳）に差し替えたいので、手順を `trait` にする（enum ではなく）**。`Report` は今のまま（`observer`・`observed`）③`verify(&self, event: &Event) -> Option<bool>`（`round` が `Event` にあるので `Report` 単体ではなく `Event` を受け取る）④戻り値の意味: `Report` 以外の `Event` → `None`／`Report` → `Some(本物か)`／材料が壊れている（そのラウンドに合う `Observe` が無い）→ `panic`（呼ぶ側のバグ。11/08 の `set_report_states` と同じ種類。`Option` は「種類が違う」だけを表す）⑤見ていない通報は、たまたま当たっても偽物（今の `set_report_states` の挙動と同じ。v0.1 の結果とも一貫）
+  - 腑に落ちたこと: 台帳は見た本人の頭の中（`ObserveStatus`）を知らない。`ObserveStatus` はシミュレーションが `detect_p` と `actions` から決めた値で、台帳から見れば神さまの値。だから受け口を台帳の外に出して狭く保つ。`actions` で照合すると「見ていなくてもたまたま当たった通報」が本物になり、retro の「嘘を言うと損」が弱まる（モデルの意味が変わる）
+  - 済: `Verify`（トレイト）、`SimVerifier { all_observes: Vec<Observes> }`（i 番目＝i ラウンド）、`SimVerifier::new`、`verify` の中身（`is_found` で「合う Observe があったか」を持つ）。テスト `test_verifier`（`Some(true)`・`Some(false)`・`None`×2）と `test_verifier_panic_case`（`#[should_panic(expected = "...")]`）
+  - つまずきと解決: ①`match` のパターンで `Report{target_observer:usize, ...}` と型を書いた → パターンの `:` の右は新しい変数名（フィールド名は enum の実際の名前。Book 19.3）②`for_each` の中で、他人の `Observe` に当たるたびに `panic!` していた（n≥2 でほぼ必ず止まる）→ ループの外に出して `is_found` で判断 ③`panic!` が `for` の外で必ず実行される位置にあった → `is_found` で分岐
+  - 任意: `test_verifier` の未使用 `event3`・`ledger`、`Observes` の組み立ての重複（小さな関数に）。`SimVerifier::new` に `pub` が無い（`lib.rs` / `experiment.rs` から使うとき）。`round` が範囲外のときの添字パニックと、`expected` の文言が別なのでテストで区別できる
+  - 見積もりの見直し（11/21）: Lovable の前まで 7〜11回。残り: 照合を台帳につなぐ・`round` から `Report` / `Judge` / `Reward` を書く 2〜3回、ハッシュチェーン 1〜2回、評判 2〜3回、Axum の最初の口 2〜3回。12/31 まで約5週間で取れるのは 11〜17回。Axum の最初の口までは届きそう、Lovable は「届けば」。遅れたら評判を最小（カウンタの集計だけ）にして API を先に通す手もある
 - 次の一歩（フェーズA 台帳）:
-  0. （11/21 済）`Ledger` の `new` / `append` / `read` とテスト。**次は照合を台帳の仕事として切り出す**。最初の問い: 今の `set_report_states` は `Observes`（`observe_status`）を見て本物か偽物かを決めている。台帳の `Report` を受け取って `Judge`（`is_guilty`）を書くとき、照合は何を根拠に `is_guilty` を決めるか（神さまの視点の `actions` を渡す？ 渡さずに済む形は？）。その前に `Note.md` の説明を書く
+  0. （11/22 済）`Verify` トレイトと `SimVerifier`（下の 11/22）。**次は `verify` を台帳につなぐ**。最初の問い: `Report` を受け取って `Judge`、続いて `Reward` を台帳に書くまでの流れを、誰が・どの順で呼ぶか。`Ledger` が `Verify` を持つ形と、呼ぶ側が `verify` の結果を持って `Ledger::append` する形の、どちらが合うか。その前に `Note.md` の説明を書く（未確認）
   （以下は 11/20 までの項目。0〜3 は済）
   4. その後: 照合を台帳の仕事として切り出す（今の `set_report_states` の判定）→ `round` から台帳に `Report` / `Judge` / `Reward` を書く
 - （以下は v0.1 完了前の「次の一歩」。参考として残す）次の一歩（ステップ5 の続き）:

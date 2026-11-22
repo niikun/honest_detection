@@ -115,7 +115,7 @@ impl Observe {
         Observe{observer:observer, observed:observed, observe_status:observe_status}
     }
 }
-
+#[derive(Debug)]
 pub struct Observes {
     pub observes:Vec<Observe>
 }
