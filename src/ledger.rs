@@ -1,5 +1,5 @@
 
-use crate::{Params, Observes, Observe, ObserveStatus};
+use crate::{Params, Observes, Observe, ObserveStatus, ReportStates, ReportState};
 
 #[derive(Debug, Clone, Copy,PartialEq)]
 pub struct Event{
@@ -20,10 +20,10 @@ pub struct Ledger{
 }
 
 impl Event {
-    pub fn new(round: usize, event_type:EventType) -> Self {
+    pub fn new(round: usize, kind:EventType) -> Self {
         Self {
             round: round,
-            kind:event_type
+            kind:kind
         }
     }
 }
@@ -43,23 +43,24 @@ impl Ledger{
     }
 }
 
-pub struct SimVerifier{
-    all_observes:Vec<Observes>,
+#[derive(Clone, Debug)]
+pub struct SimVerifier<'a>{
+    all_observes:&'a Vec<Observes>,
 }
 
 pub trait Verify {
     fn verify(&self, event:&Event)->Option<bool> ;
 }
 
-impl SimVerifier {
-    pub fn new(all_observes:Vec<Observes>) -> Self {
+impl<'a> SimVerifier<'a> {
+    pub fn new(all_observes:&'a Vec<Observes>) -> Self {
         Self {
             all_observes: all_observes
         }
     }
 }
 
-impl Verify for SimVerifier {
+impl<'a> Verify for SimVerifier<'a> {
     fn verify(&self, event:&Event)-> Option<bool> {
         match event.kind {
             EventType::Report{observer:target_observer, observed:target_observed} =>{
@@ -85,6 +86,44 @@ impl Verify for SimVerifier {
             }
         }
     }
+}
+
+pub fn make_report_event(round:usize, observes:&Observes, report_states:&ReportStates) -> Vec<Event>{
+    assert_eq!(observes.observes.len(),report_states.states.len());
+    report_states.states.iter().zip(observes.observes.iter())
+        .filter(|(state,_observe)|{
+            *state == &ReportState::ReportTrue || *state == &ReportState::ReportFalse 
+        })
+        .map(|(_state,observe)| {
+            Event::new(
+                round, 
+                EventType::Report{observer:observe.observer, observed:observe.observed}
+            )
+        })
+        .collect()
+}
+
+pub fn make_judge_event(events:&Vec<Event>, all_observes:&Vec<Observes>) -> Vec<Event>{
+    let verifier = SimVerifier::new(all_observes);
+    let mut judge_events:Vec<Event> = Vec::new();
+    for event in events {
+        match event.kind {
+            EventType::Report{observer, observed} =>{
+                let judgement = verifier.verify(&event);
+                match judgement {
+                    Some(is_guilty) => {
+                        let judege_event = Event::new(
+                            event.round, 
+                            EventType::Judge{observer:observer,observed:observed,is_guilty:is_guilty});
+                        judge_events.push(judege_event);
+                    },
+                    _ =>{}
+                }
+            },
+            _ =>{}
+        }
+    }
+    judge_events
 }
 
 #[cfg(test)]
@@ -123,8 +162,8 @@ mod tests{
         // println!("{:?}",records);
     }
 
-    fn set_sim_verifier() -> SimVerifier {
-                let observe1  = Observe {
+    fn set_sim_vec() -> Vec<Observes> {
+        let observe1  = Observe {
             observer:0,
             observed:1,
             observe_status:ObserveStatus::See
@@ -151,12 +190,13 @@ mod tests{
             observes: vec![observe3, observe4]
         };
         let all_observes = vec![observes1, observes2];
-        SimVerifier::new(all_observes)
+        all_observes
     }
 
     #[test]
     fn test_verifier(){
-        let sim_verifier = set_sim_verifier();        
+        let sim_vec = set_sim_vec();        
+        let sim_verifier = SimVerifier::new(&sim_vec);
         let event1 = Event::new(0,EventType::Report{observer:0,observed:1});
         let event2 = Event::new(1,EventType::Report{observer:1, observed:0});
         let event3 = Event::new(0, EventType::Judge{observer:0, observed:1,is_guilty:true});
@@ -170,8 +210,30 @@ mod tests{
     #[should_panic(expected = "Event Report do not match Observes")]
     #[test]
     fn test_verifier_panic_case(){    
-        let sim_verifier = set_sim_verifier();        
+        let sim_vec = set_sim_vec();
+        let sim_verifier = SimVerifier::new(&sim_vec);      
         let event = Event::new(0, EventType::Report{observer:100, observed:200});  
         sim_verifier.verify(&event);    
     }
+    #[test]
+    fn test_make_report_event(){
+        let observes = &Observes { 
+            observes: vec![
+                Observe{observer:0, observed:1,observe_status:ObserveStatus::See},
+                Observe{observer:1, observed:2,observe_status:ObserveStatus::Notsee},
+                Observe{observer:2, observed:0,observe_status:ObserveStatus::See}
+                ]
+        };
+        let report_states = &ReportStates { states: vec![
+            ReportState::ReportTrue,
+            ReportState::ReportFalse,
+            ReportState::Ignore
+        ]};
+        let events = make_report_event(0, observes, report_states);
+        let event1 = Event::new(0,EventType::Report{observer:0,observed:1});
+        let event2 = Event::new(0,EventType::Report{observer:1,observed:2});
+        let expected = vec![event1, event2];
+        assert_eq!(events, expected);
+    }
+
 }
