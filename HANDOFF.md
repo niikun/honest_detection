@@ -1,6 +1,6 @@
 # honest_detection 学習ハンドオフ
 
-作成: 2026-10-28 / 最終更新: 2026-11-20
+作成: 2026-10-28 / 最終更新: 2026-11-24
 目的: 検知共有×評判ネットワークのシミュレーションを**一から作り**、Rust（型・所有権・テスト）と設計力を身につける。最終的に Axum API + Lovable(React) まで（期限 2026-12-31）。
 関連: 秘書ノート `topics/verifiable-detection-reward-network.md`（構想）/ `topics/honest-detection-rust-api-roadmap.md`（ロードマップ）
 
@@ -181,7 +181,7 @@
   - `baf9a98` でコミット済み
   - 次の判断（v0.1 の後）: 年内の範囲の見直し（台帳 → 評判 → Axum API の最初の口 → Lovable）。「理解を優先」（11/15）。Twin Towns の「違反の定義」は未決
 - 2026-11-16 終了時: **台帳から考え始める**と決めた（Twin Towns の違反の定義より先）。**次回の最初の問い（未回答）**: 1ラウンドの中で、台帳に1件ずつ記録するべき出来事（イベント）にはどんな種類があるか（行動・見た・通報・罰・報酬など、今のシミュレーションの言葉で挙げる）。材料: 評判は台帳の検証済みイベントだけから計算する（10/28 の決定）、`Agent` のカウンタ（`count_violate` / `count_report_true` / `count_report_false` / `count_ignore`）は評判の材料として残してある（11/14）、Twin Towns の台帳は `LedgerEvent`（`tick` と `type`）の形（11/04）。コードを書く前に、イベントの一覧を紙に書く
-- 2026-11-17: **台帳の考え方を整理（コードはまだ）**。`Note.md` の「# Step02 台帳に持つ値」に一覧を書き始めた（未コミット）
+- 2026-11-17: **台帳の考え方を整理（コードはまだ）**。`Note.md` の「# Step02 台帳に持つ値」に一覧を書き始めた（コミット済み）
   - 台帳とは: 起きた出来事を順に1件ずつ書き足す記録（通帳のイメージ）。書いた行は消さない・書き換えない。カウンタ（状態）は台帳を集計した結果で、台帳から作り直せる（逆はできない）
   - 決まったこと:
     1. **`actions` は台帳に書かない**。シミュレーションは「神さまの視点」で誰が違反したかを知っているが、現実・Twin Towns の台帳は知らない。`actions` を書くと通報の仕組みが不要になってしまう
@@ -202,37 +202,48 @@
   - 済: `src/ledger.rs` に `Event { round, kind }` と `EventType`（`Report` / `Reward` / `Judge`）。種類ごとに struct を作らず、**`{ }` の形で項目を持たせる enum** にした（`Report { observer, observed }` など）
   - つまずきと解決: enum の種類にデータを持たせるとき `Report:Report` と書いた → `Report(Report)` か `Report { ... }`（Book 6.1。`:` はフィールド名と型の組。enum の種類名は名前が先で、持つ値の型は後）。`float` は `f64`
   - **未了**（11/20 時点）: ①~~`lib.rs` に `mod ledger;` が無い~~ → `pub mod ledger;` あり（済） ②`Event` / `EventType` に `pub` が無い。`Event` のフィールドを `pub` にするか（外から書き換えられてしまう）、非公開にして読む手段を作るか、が未決（最後の問い・未回答）③`Ledger { events }`・`new`・`append`・`events()` は未着手 ④`Note.md` に「公開するもの／しないもの」「`&[Event]` を返す理由」「`&self` と `&mut self`」を自分の言葉で書く（依頼済み・未確認）
-- 2026-11-20: **`Events`（台帳）の `new` / `read` / `append` に着手**（`src/ledger.rs` は未コミット。**今はコンパイルが通らない**）
+- 2026-11-20: **`Events`（台帳）の `new` / `read` / `append` に着手**（コミット済み。11/21 に解消）
   - 済: `Event` と `EventType` に `#[derive(Debug, Clone, PartialEq)]`。`Event::new(round, event_type)`（作るための関数）。台帳の struct は `Events { events: Vec<Event> }`（フィールドは非公開）。`append(&mut self, event: Event)` は `push` で末尾に足す（通る形）
   - 分かったこと（`Copy`）: `Copy` は「ビットをそのまま複製すれば完全な値になる」型だけに付く。条件は中身が全部 `Copy`。`EventType` / `Event` は `usize`・`f64`・`bool` だけなので付けられるが、**`Events` は `Vec` を持つので付けられない**（`Vec` は本体を heap に持ち、ビットの複製だと住所だけ写って持ち主が2人になる＝二重解放）。`Vec` は `Clone`（`.clone()` で本体ごと複製）。台帳は「こっそり複製されては困る」ので、11/12 の `Agent` と同じく `Copy` にしない
   - **`Vec` と `&[T]` の違いが分からない**（本人。説明を3通り試した: ①図（`Vec` は ptr・len・capacity を持つ持ち主、`&[T]` は ptr・len だけの借りた窓）②ノートとのぞき窓のたとえ ③自分のコードとのつながり＝11/05 の `&Observes` と同じ「貸す」で、貸すものが「Event の並んだ列」になっただけ）。**heap と stack の違いではなく、持ち主か借りているだけか、の違い**。まだ腑に落ちていない
   - 今のコードの問題（`read`）: 中で新しい `Vec<&Event>` を作って clone を集め、その参照を返そうとしている → エラー2つ（`Event` から `Vec<&Event>` は作れない／型の不一致）。さらに、関数の中で作った `Vec` の参照は関数が終わると消えるので返せない。**新しく作らず、台帳がすでに持っている `events` をそのまま貸せばよい**（`String` から `&str` を作るのと同じ書き方。Book 4.3）
   - 残る: `Event` のフィールドが `pub` のまま（台帳に足した後でも外から書き換えられる。`Event::new` を作ったので非公開に戻せる。ただし外から読む手段＝ゲッターが要る）。`fn write()` は中身なし（公開しないと決めたので要らないはず）。`Events::new()`（空の台帳を作る）がまだ無い。`Note.md` の「`&[Event]` を返す理由」が「変更できないようにするため」のまま（`&Vec` でも変更はできない。決めた理由は「中身が `Vec` であることを外に見せないため」）
-- 2026-11-21: **`Ledger` の最小版が動いた**（`cargo test` 19件成功。`src/ledger.rs` は未コミット。上の 11/20 の問題は全部解消）
+- 2026-11-21: **`Ledger` の最小版が動いた**（`cargo test` 19件成功。コミット済み。上の 11/20 の問題は全部解消）
   - 済: `Events` → `Ledger` に改名。`new`（空の台帳）、`read(&self) -> &[Event]`（`&self.events` だけで通る）、`append(&mut self, Event)`。空の `write` は削除。`events` は非公開のまま
   - テスト `test_read`: 3種類のイベントを `round` を 0〜3 に変えて4件足し、足すたびに 0〜i 件目の全部が `read()` 経由で変わっていないことと、件数を確かめる（最初の版は直前の1件だけ・`round` が全部 0・件数なし・`ledger.events` 直読みだった → 直した）
   - 腑に落ちたこと（`Vec` と `&[T]`）: 窓（slice）の持ち主は `self.events` で、`read` が終わっても生きている。前の版は `read` の中で作った `Vec` の窓を返したので、持ち主が先に消えた（E0515）。`&` は読むだけ・slice には `push` が無い（本人が「参照で所有権がないから書き換えられない」と説明できた）
   - 分かったこと（非公開）: Rust の非公開は**モジュール単位**。子モジュール（`tests`）は親の非公開フィールドに触れる（`use super::*` は名前の近道で、理由ではない）。外のモジュール（`experiment.rs` など）からは `ledger.events` はコンパイルエラー。「書き換えない」を守る本体は、テストよりも、非公開フィールド＋`&mut` を返さない設計（Book 7.3）
   - 任意: `test_read` の `println!` と最後の4行（ループと重複）の整理。`Ledger::default()`（clippy の `new_without_default`）。空の台帳を読むテスト。`Event` のフィールドの `pub`（台帳に足した後でも外から書き換えられる。`Copy` なので `read()` の `&Event` からは直接書き換えられないが、`Event` を取り出して作り直すことはできる。非公開にして読むメソッドを作るかは未決）
   - 未確認: `Note.md` の「公開するもの／しないもの」「`&[Event]` を返す理由」「`&self` と `&mut self`」（11/19 に依頼）。「変更できないようにするため」のまま残っていたら、「中身が `Vec` であることを外に見せないため」に直す
-- 2026-11-22: **照合の切り出し（`Verify` トレイトと `SimVerifier`）が動いた**（`cargo test` 21件のはず。`src/ledger.rs`・`src/lib.rs` は未コミット。**未コミットのまま休憩**）
+- 2026-11-22: **照合の切り出し（`Verify` トレイトと `SimVerifier`）が動いた**（コミット済み。11/24 に `cargo test` 22件成功を確認）
   - 決まったこと（紙の設計）: ①照合の材料に神さまの値（`actions`・`ObserveStatus`）を使うのは、台帳（`Ledger`）の外に出した受け口だけ。台帳は `Verify` トレイトだけを知る ②**後で証拠（ZK の検証結果・Twin Towns の台帳）に差し替えたいので、手順を `trait` にする（enum ではなく）**。`Report` は今のまま（`observer`・`observed`）③`verify(&self, event: &Event) -> Option<bool>`（`round` が `Event` にあるので `Report` 単体ではなく `Event` を受け取る）④戻り値の意味: `Report` 以外の `Event` → `None`／`Report` → `Some(本物か)`／材料が壊れている（そのラウンドに合う `Observe` が無い）→ `panic`（呼ぶ側のバグ。11/08 の `set_report_states` と同じ種類。`Option` は「種類が違う」だけを表す）⑤見ていない通報は、たまたま当たっても偽物（今の `set_report_states` の挙動と同じ。v0.1 の結果とも一貫）
   - 腑に落ちたこと: 台帳は見た本人の頭の中（`ObserveStatus`）を知らない。`ObserveStatus` はシミュレーションが `detect_p` と `actions` から決めた値で、台帳から見れば神さまの値。だから受け口を台帳の外に出して狭く保つ。`actions` で照合すると「見ていなくてもたまたま当たった通報」が本物になり、retro の「嘘を言うと損」が弱まる（モデルの意味が変わる）
   - 済: `Verify`（トレイト）、`SimVerifier { all_observes: Vec<Observes> }`（i 番目＝i ラウンド）、`SimVerifier::new`、`verify` の中身（`is_found` で「合う Observe があったか」を持つ）。テスト `test_verifier`（`Some(true)`・`Some(false)`・`None`×2）と `test_verifier_panic_case`（`#[should_panic(expected = "...")]`）
   - つまずきと解決: ①`match` のパターンで `Report{target_observer:usize, ...}` と型を書いた → パターンの `:` の右は新しい変数名（フィールド名は enum の実際の名前。Book 19.3）②`for_each` の中で、他人の `Observe` に当たるたびに `panic!` していた（n≥2 でほぼ必ず止まる）→ ループの外に出して `is_found` で判断 ③`panic!` が `for` の外で必ず実行される位置にあった → `is_found` で分岐
   - 任意: `test_verifier` の未使用 `event3`・`ledger`、`Observes` の組み立ての重複（小さな関数に）。`SimVerifier::new` に `pub` が無い（`lib.rs` / `experiment.rs` から使うとき）。`round` が範囲外のときの添字パニックと、`expected` の文言が別なのでテストで区別できる
   - 見積もりの見直し（11/21）: Lovable の前まで 7〜11回。残り: 照合を台帳につなぐ・`round` から `Report` / `Judge` / `Reward` を書く 2〜3回、ハッシュチェーン 1〜2回、評判 2〜3回、Axum の最初の口 2〜3回。12/31 まで約5週間で取れるのは 11〜17回。Axum の最初の口までは届きそう、Lovable は「届けば」。遅れたら評判を最小（カウンタの集計だけ）にして API を先に通す手もある
-- 2026-11-23: **`Report` と `Judge` の `Event` を作る関数ができた**（`cargo test` 22件成功。`src/ledger.rs` は未コミット。`README.md` は `382e1d5` でコミット済み）
+- 2026-11-23: **`Report` と `Judge` の `Event` を作る関数ができた**（`cargo test` 22件成功。`d7bfc6d` でコミット済み）
   - 決まったこと（紙の設計）: ①**`Ledger` は足すだけ（B 案）**。照合は台帳の外で、呼ぶ側が `verify` の結果を受け取り、`Ledger::append` を1件ずつ呼ぶ（`Vec<Event>` は `for` で回す。複数用のメソッドは作らない。理由: ハッシュチェーンは1件ごとに「1件前のハッシュ」を使うので、足す口は1か所がよい）②台帳の並びは **`Report` → その `Judge` → 次の `Report` → その `Judge`**（通報1件ごとに組）。ただし結びつけは隣り合うことではなく `round`・`observer`・`observed` で行う③`Report` は 0〜n 件（全員が `Report` を選ぶと n 件。n−1 ではない）④`Judge` は、通報の `Event` が持つ `observer` / `observed` をそのまま使う（`verify` は `bool` を返すだけで、同じ値を返し直さない。差し替える実装の責任を増やさない）⑤**`Reward` の設計（次に書く）**: 違反者 j を a・b の2人が本物と通報したら、通報者2人分の報酬と違反者の罰1件の計3件。`none` / `immediate` は罰なし、`retro` だけ罰。**書くかどうかは値（`== 0.0`）ではなく何が起きたかで決める**: 通報者は `ReportState`（`ReportTrue` / `ReportFalse` なら書く、`Ignore` は書かない）、違反者は `Judge` の `is_guilty = true`（罰は j につき1回だけ。`observed` に印を付けて覚える）。起きなかったことは台帳に書かない（11/19）
   - 済: `make_report_event(round, &Observes, &ReportStates) -> Vec<Event>`（`ReportState` が `ReportTrue` / `ReportFalse` の人だけ。`zip` の前に長さを `assert_eq!`）、`make_judge_event(&Vec<Event>, &Vec<Observes>) -> Vec<Event>`（`Report` の `Event` ごとに `verify`。`Some(is_guilty)` を1つの枝にまとめた）。テスト `test_make_report_event`（`make_judge_event` のテストはまだ無い）
   - つまずきと解決: ①`.map` の中で `if` に `else` が無い（`E0317`）→ `map` は全員から必ず1件作る。0件か1件は `filter` + `map`（または `filter_map`）②`SimVerifier` を `&'a Vec<Observes>` を借りる形に変えた → テストの補助関数が、中で作った `Vec` を借りる `SimVerifier` を返して `E0106` / `E0308`。補助関数は `Vec<Observes>` を返し、`SimVerifier` はテストの中で `&sim_vec` を借りて作る形に直した ③`cargo test -p ledger` はできない（`-p` はパッケージ。モジュールは `cargo test ledger` の名前の絞り込み。Book 11.2）
   - 腑に落ちたこと（lifetime）: `'a` は新しい値を作らず、借りた相手と借りている間の長さをコンパイラに伝える注釈。`read` の E0515 と同じ種類の安全の話（ローカルの `Vec` を借りた物を返すとダメ）。自分で書くのは①`struct` が参照を持つ ②参照を返す関数で参照の引数が2つ以上 ③`'static`（スレッド・Axum の共有状態。所有または `Arc` にする）。`struct` には参照ではなく所有する値を入れれば避けられる（Book 10.3）。**借りる形のままにする**: 呼ぶ側が `all_observes` を後の `Reward` の計算でまた使うため（所有にすると `clone` が要る）。`SimVerifier` を `Ledger` や Axum の状態に長く持たせるときは見直す
   - 任意: `make_judge_event` の `judege_event`（綴り）、`for` の外側の `match` を `if let` に。`make_report_event` の長さの食い違いを `#[should_panic]` で確かめるテスト。`test_read` の `println!` と最後の `assert_eq!` の整理
   - 見積もり（11/23 時点）: Lovable の前まで 6〜10回（照合をつなぐ残り 1〜2回、ハッシュチェーン 1〜2回、評判 2〜3回、Axum の最初の口 2〜3回）。12/31 まで約5週間で取れるのは 10〜16回
+- 2026-11-24: **`make_reward_event` に着手**（`src/ledger.rs` は未コミット。`cargo test` 22件成功だが、**この関数のテストはまだ無い**）
+  - 済: `Ledger` の公開範囲を直した（`pub struct Ledger { events }`。**フィールドは非公開**。一度 `events` が `pub` になっていた → 11/19 の「書き換えられない台帳」の土台が崩れるので外した。外しすぎて struct ごと非公開にした段階もあった）
+  - 済: `make_reward_event(params, &Vec<Event>) -> Vec<Event>`（非公開）。`Judge` だけを受け取る（他の種類は `panic`）。通報者: 本物 `r_imm + r_true - cost`／偽物 `r_imm - p_false - cost`（mode ごとに使わない値は 0.0）。違反者の罰: **符号を `-p_viol` に直した**。**`Mode::Retro` のときだけ書く**（none / immediate で「罰 0.0」を書かない＝起きなかったことは書かない、11/23）
+  - **バグ（未修正）: 罰が1件も書かれない**。①`is_checked`（罰を書いた違反者の記録）がクロージャの**中**で毎回作り直され、`Judge` をまたいで覚えていない ②条件が `is_checked.contains(&observed)`（すでに書いた人なら書く）で逆。①のせいで常に空 → 常に false → retro でも罰が出ない。**テストが無いので `cargo test` では見つからない**
+  - 答えかけの問い: ①`is_checked` をどこで作れば `Judge` をまたいで覚えられるか ②「まだ書いていない人なら書く」をどう書くか ③複数ラウンドの `Judge` が渡されたとき、ラウンド3で罰を受けた j がラウンド5でまた通報されたら罰は書くべきか。`observed` だけを覚えるやり方で正しいか（`(round, observed)` の組で覚える必要は？）
+  - **未決（設計）**: 額を `params` から計算し直すか、`get_report_reward` の結果から取るか。今は計算し直しで、式が `get_report_reward` と2か所にある（片方だけ直すと学習の報酬と台帳の額がずれる）。一方、11/17 の決定7（照合の結果と罰・報酬の照らし合わせ）として「わざと別々に計算する」考え方もある。判断材料: 台帳が記録すべきは「実際に学習に使われた額」
+  - 任意: `let mut` ×4 と `if / else if / else {}` は `match params.mode` で値を決める形にできる。`for_each` の中の `push` は `for` 文の方が読みやすい（`is_checked` を外に出すときも）
 - 次の一歩（フェーズA 台帳）:
-  0. （11/23 済）`Report` と `Judge` の `Event` を作る関数。**次は `Reward` の `Event` を作る関数**。最初の問い: `reward`（額）は何から取るか（通報者の報酬と違反者の罰は `get_report_reward` の `(通報者の報酬, 違反者の罰)` から取れるか）。罰を書くのは `retro` のときだけだが、その判断を何で決めるか（`Params.mode`。値の `== 0.0` ではなく）。そのあと ①`make_judge_event` のテスト ②ラウンドの中で、`get_reactions` の後に `Report` → `Judge` → `Reward` を `Ledger::append` で足す ③`Note.md` の説明（公開するものと、`&[Event]` を返す理由。未確認）
-  （以下は 11/20 までの項目。0〜3 は済）
-  4. その後: 照合を台帳の仕事として切り出す（今の `set_report_states` の判定）→ `round` から台帳に `Report` / `Judge` / `Reward` を書く
+  1. `make_reward_event` のバグ2つを直す（上の問い①②③）
+  2. テストを書く: retro で a・b の2人が j を本物と通報、c が偽通報 → 期待するイベントの件数と、誰にいくらかを**先に紙で計算**。none / immediate で罰が書かれないことも
+  3. 額をどこから取るか（上の「未決」）を決める
+  4. `make_judge_event` のテスト（11/23 から未作成）
+  5. ラウンドの中で、`get_reactions` の後に `Report` → `Judge` → `Reward` を `Ledger::append` で足す
+  6. `Note.md` の説明（公開するものと、`&[Event]` を返す理由。11/19 から未確認）
+  - （済）照合を台帳の仕事として切り出す → 11/22 の `Verify` / `SimVerifier`
 - （以下は v0.1 完了前の「次の一歩」。参考として残す）次の一歩（ステップ5 の続き）:
   1. `git add` / `commit` / `push`（本人。`src/lib.rs`）
   2. （済）「気になる点」1・2 は上の 11/16 夜で決着。3（表の書式）は任意

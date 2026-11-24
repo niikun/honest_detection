@@ -1,5 +1,5 @@
 
-use crate::{Params, Observes, Observe, ObserveStatus, ReportStates, ReportState};
+use crate::{Params, Mode, Observes, Observe, ObserveStatus, ReportStates, ReportState};
 
 #[derive(Debug, Clone, Copy,PartialEq)]
 pub struct Event{
@@ -16,7 +16,7 @@ pub enum EventType {
 
 #[derive(Debug, Clone)]
 pub struct Ledger{
-    pub events:Vec<Event>
+    events:Vec<Event>
 }
 
 impl Event {
@@ -125,6 +125,43 @@ pub fn make_judge_event(events:&Vec<Event>, all_observes:&Vec<Observes>) -> Vec<
     }
     judge_events
 }
+
+fn make_reward_event(params: &Params, events: &Vec<Event>) -> Vec<Event> {
+    let mode:&Mode = &params.mode;
+    let mut p_viol = 0.0;
+    let mut p_false = 0.0;
+    let mut r_true = 0.0;
+    let mut r_imm = 0.0;
+    let cost = params.cost;
+    let mut results:Vec<Event> = Vec::new(); 
+    if mode == &Mode::Immediate {
+            r_imm = params.r_imm;
+    } else if mode == &Mode::Retro {
+            p_viol = params.p_viol;
+            p_false = params.p_false;
+            r_true = params.r_true;
+            r_imm = params.r_imm;
+    } else {}
+    events.iter()
+        .for_each(|e| {
+            match e.kind  {
+                EventType::Judge{observer, observed, is_guilty} => {
+                    let mut is_checked:Vec<usize> = Vec::new();
+                    if is_guilty == true {
+                        results.push(Event::new(e.round,EventType::Reward { who: observer, reward: r_imm + r_true - cost}));
+                        if mode == &Mode::Retro && is_checked.contains(&observed){
+                            results.push(Event::new(e.round, EventType::Reward{who: observed, reward: -p_viol}));
+                        }
+                        is_checked.push(observed);
+                    } else {
+                        results.push(Event::new(e.round,EventType::Reward { who: observer, reward: r_imm - p_false -cost}));
+                    }
+                },
+                _ => {panic!("Input event type must be Judge.");}
+            }
+        });
+    results
+}    
 
 #[cfg(test)]
 mod tests{
