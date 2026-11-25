@@ -242,10 +242,16 @@
   - **⚠ クレート名の打ち間違い**: `approx`（浮動小数点の「ほぼ等しい」比較）のつもりで **`aprox = "0.0.0"`** が `[dev-dependencies]` に入った。中身を確認: 空の `lib.rs` だけで `build.rs` も無い別人のクレート（害は無いが目的のものではない）→ `cargo remove --dev aprox` で外し、`cargo add --dev approx` で入れ直す。**クレートを足すときは名前と crates.io のページ（作者・ダウンロード数）を確かめる**（似た名前の別クレートを入れる事故は、悪意のあるクレートだと危険）
   - 分かったこと: 依存クレートは**パッケージ単位**（`Cargo.toml` 1つ）で、`ledger.rs` だけには入れられない。`[dev-dependencies]` はテストのときだけ使われる。`approx` のマクロは `f64` どうしの比較用で、`Event` を丸ごとは比べられない
   - テストの直す点（コンパイルが通ったら出てくるはず）: ①`r.who` / `r.reward` は `Event` のフィールドではない（`who` と `reward` は `kind` の `EventType::Reward { .. }` の中）→ `match` か `if let` で取り出す ②`who`（`usize`）は `assert_eq!` で比べる（`abs_diff_eq!` は `f64` 用）③`zip` は短い方で止まるので、**件数の `assert_eq!`** が要る（罰が2件出るバグは件数で見つかる）④`round` も比べる ⑤none / immediate で罰が書かれないことのテスト。代わりに `lib.rs` のテストにある `round_float`（11/14）を使う手もある
+- 2026-11-25 後半: **`test_make_rewardevent` が通った**（`cargo test` 23件成功。`cedf875` までコミット済み。`src/ledger.rs` の小さな変更だけ未コミット）
+  - 済: `aprox` を外して `approx = "0.5.1"` に入れ直し。テストは `match` で `Reward { who, reward }` を取り出し、`who` は `assert_eq!`、`reward` は `abs_diff_eq!`（誤差 1e-8）。`zip` の前に件数の `assert_eq!`。`Ledger` の `events` は非公開のまま
+  - つまずきと解決: クロージャの引数に `r{...}` とパターンを書いた（`E0422` ほか）→ 常に当てはまるパターンしか書けないので、`match` で取り出す
+  - **残る問い（未回答）**: 額を `get_report_reward`（学習用）と `make_reward_event`（台帳用）の2か所で計算している。式を片方だけ変えると食い違う。食い違わない形にするか、11/17 の決定7（記録どうしの照合）で検出するか
+  - 資料: 進捗共有のスライド（7枚。claude.ai の Artifact）と README の「背景」「未解決の課題」を作った。README の「近い研究」（scalable oversight・AI control・mechanism design・TrueBit）は出典未確認なので、載せるならリンクを調べて足す
+  - メモ: 問いを重ねすぎると嫌がられる（11/25「もういいです」）。1問ずつ、短く
 - 次の一歩（フェーズA 台帳）:
-  1. `aprox` を外して `approx` を入れ直し（または `round_float` を使い）、`test_make_rewardevent` を通す（上の「直す点」①〜④）
-  2. none / immediate のテスト（罰のイベントが書かれない）
-  3. 額をどこから取るか（11/24 の「未決」: `params` から計算し直す／`get_report_reward` の結果から取る）を決める
+  1. （11/25 済）`test_make_rewardevent` を通す
+  2. none / immediate のテスト（罰のイベントが書かれない）。`make_reward_event` が `pub` でないので、使う側から呼べるようにするか決める
+  3. 額をどこから取るか（上の「残る問い」）を決める
   4. `make_judge_event` のテスト（11/23 から未作成）
   5. ラウンドの中で、`get_reactions` の後に `Report` → `Judge` → `Reward` を `Ledger::append` で足す
   6. `Note.md` の説明（公開するものと、`&[Event]` を返す理由。11/19 から未確認）

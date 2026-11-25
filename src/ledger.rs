@@ -287,7 +287,19 @@ mod tests{
         let expected3 = Event::new(0, EventType::Reward{who: 1, reward: -&params.cost + &params.r_imm + &params.r_true});
         let expected4 = Event::new(0, EventType::Reward{who: 3, reward: -&params.cost + &params.r_imm - &params.p_false});
         let expecteds: Vec<Event> = vec![expected1, expected2, expected3, expected4];
-        results.iter().zip(expecteds.iter()).for_each(|(r, e)| {assert!(abs_diff_eq!(r.who, e.who, 1e-8))});
-        results.iter().zip(expecteds.iter()).for_each(|(r, e)| {assert!(abs_diff_eq!(r.reward, e.reward, 1e-8))});
+        assert_eq!(results.len(), expecteds.len());
+        results.iter().zip(expecteds.iter())
+            .for_each(|(r, e)| {
+                let (result_who, result_reward) = match r.kind {
+                    EventType::Reward{who, reward} => (who, reward),
+                    _ => panic!("Invalid EventType")
+                };
+                let (expected_who, expected_reward) = match e.kind {
+                    EventType::Reward{who, reward} => (who, reward),
+                    _ => panic!("Invalid EventType")
+                };
+                assert_eq!(result_who, expected_who);
+                assert!(abs_diff_eq!(result_reward, expected_reward, epsilon=1e-8));
+            })
     }
 }
