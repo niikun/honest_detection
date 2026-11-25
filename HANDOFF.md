@@ -1,6 +1,6 @@
 # honest_detection 学習ハンドオフ
 
-作成: 2026-10-28 / 最終更新: 2026-11-24
+作成: 2026-10-28 / 最終更新: 2026-11-25
 目的: 検知共有×評判ネットワークのシミュレーションを**一から作り**、Rust（型・所有権・テスト）と設計力を身につける。最終的に Axum API + Lovable(React) まで（期限 2026-12-31）。
 関連: 秘書ノート `topics/verifiable-detection-reward-network.md`（構想）/ `topics/honest-detection-rust-api-roadmap.md`（ロードマップ）
 
@@ -229,21 +229,27 @@
   - 腑に落ちたこと（lifetime）: `'a` は新しい値を作らず、借りた相手と借りている間の長さをコンパイラに伝える注釈。`read` の E0515 と同じ種類の安全の話（ローカルの `Vec` を借りた物を返すとダメ）。自分で書くのは①`struct` が参照を持つ ②参照を返す関数で参照の引数が2つ以上 ③`'static`（スレッド・Axum の共有状態。所有または `Arc` にする）。`struct` には参照ではなく所有する値を入れれば避けられる（Book 10.3）。**借りる形のままにする**: 呼ぶ側が `all_observes` を後の `Reward` の計算でまた使うため（所有にすると `clone` が要る）。`SimVerifier` を `Ledger` や Axum の状態に長く持たせるときは見直す
   - 任意: `make_judge_event` の `judege_event`（綴り）、`for` の外側の `match` を `if let` に。`make_report_event` の長さの食い違いを `#[should_panic]` で確かめるテスト。`test_read` の `println!` と最後の `assert_eq!` の整理
   - 見積もり（11/23 時点）: Lovable の前まで 6〜10回（照合をつなぐ残り 1〜2回、ハッシュチェーン 1〜2回、評判 2〜3回、Axum の最初の口 2〜3回）。12/31 まで約5週間で取れるのは 10〜16回
-- 2026-11-24: **`make_reward_event` に着手**（`src/ledger.rs` は未コミット。`cargo test` 22件成功だが、**この関数のテストはまだ無い**）
+- 2026-11-24: **`make_reward_event` に着手**（`482abba` でコミット済み。`cargo test` 22件成功だが、**この関数のテストはまだ無い**）
   - 済: `Ledger` の公開範囲を直した（`pub struct Ledger { events }`。**フィールドは非公開**。一度 `events` が `pub` になっていた → 11/19 の「書き換えられない台帳」の土台が崩れるので外した。外しすぎて struct ごと非公開にした段階もあった）
   - 済: `make_reward_event(params, &Vec<Event>) -> Vec<Event>`（非公開）。`Judge` だけを受け取る（他の種類は `panic`）。通報者: 本物 `r_imm + r_true - cost`／偽物 `r_imm - p_false - cost`（mode ごとに使わない値は 0.0）。違反者の罰: **符号を `-p_viol` に直した**。**`Mode::Retro` のときだけ書く**（none / immediate で「罰 0.0」を書かない＝起きなかったことは書かない、11/23）
   - **バグ（未修正）: 罰が1件も書かれない**。①`is_checked`（罰を書いた違反者の記録）がクロージャの**中**で毎回作り直され、`Judge` をまたいで覚えていない ②条件が `is_checked.contains(&observed)`（すでに書いた人なら書く）で逆。①のせいで常に空 → 常に false → retro でも罰が出ない。**テストが無いので `cargo test` では見つからない**
   - 答えかけの問い: ①`is_checked` をどこで作れば `Judge` をまたいで覚えられるか ②「まだ書いていない人なら書く」をどう書くか ③複数ラウンドの `Judge` が渡されたとき、ラウンド3で罰を受けた j がラウンド5でまた通報されたら罰は書くべきか。`observed` だけを覚えるやり方で正しいか（`(round, observed)` の組で覚える必要は？）
   - **未決（設計）**: 額を `params` から計算し直すか、`get_report_reward` の結果から取るか。今は計算し直しで、式が `get_report_reward` と2か所にある（片方だけ直すと学習の報酬と台帳の額がずれる）。一方、11/17 の決定7（照合の結果と罰・報酬の照らし合わせ）として「わざと別々に計算する」考え方もある。判断材料: 台帳が記録すべきは「実際に学習に使われた額」
   - 任意: `let mut` ×4 と `if / else if / else {}` は `match params.mode` で値を決める形にできる。`for_each` の中の `push` は `for` 文の方が読みやすい（`is_checked` を外に出すときも）
+- 2026-11-25: **`make_reward_event` のバグを直し、テストに着手**（`1a9ba6f` まではコミット済み。今の `src/ledger.rs`・`Cargo.toml`・`Cargo.lock` は未コミットで、**`cargo test` がコンパイルエラー**）
+  - 済（バグ修正）: ①`is_checked` を `events.iter()` の**前**に出した（`for_each` はクロージャの中身を要素ごとに最初から実行するので、中に置くと毎回空に戻る。途中で `match` の外・クロージャの中に移した段階では、逆に罰が `Judge` ごとに毎回書かれた）②条件を `!is_checked.contains(...)`（まだ書いていない人なら書く）に ③覚える値を **`(round, observed)` の組**に（ラウンド3で罰を受けた j がラウンド5でまた通報されたら罰を書く）④`push` を `if` の中へ（罰を書いた組だけ1回）。**教訓: 今日だけで「罰0件」「罰2件」と2回間違えたが、どちらもテストが無いと見えなかった**
+  - 書きかけ: `test_make_rewardevent`（retro、`Judge` 3件: 0→2 本物、1→2 本物、3→0 偽物）。期待値4件は正しい: ①0 に `r_imm + r_true - cost` ②2 に `-p_viol`（1回だけ）③1 に `r_imm + r_true - cost` ④3 に `r_imm - p_false - cost`。`params` から組み立てている
+  - **⚠ クレート名の打ち間違い**: `approx`（浮動小数点の「ほぼ等しい」比較）のつもりで **`aprox = "0.0.0"`** が `[dev-dependencies]` に入った。中身を確認: 空の `lib.rs` だけで `build.rs` も無い別人のクレート（害は無いが目的のものではない）→ `cargo remove --dev aprox` で外し、`cargo add --dev approx` で入れ直す。**クレートを足すときは名前と crates.io のページ（作者・ダウンロード数）を確かめる**（似た名前の別クレートを入れる事故は、悪意のあるクレートだと危険）
+  - 分かったこと: 依存クレートは**パッケージ単位**（`Cargo.toml` 1つ）で、`ledger.rs` だけには入れられない。`[dev-dependencies]` はテストのときだけ使われる。`approx` のマクロは `f64` どうしの比較用で、`Event` を丸ごとは比べられない
+  - テストの直す点（コンパイルが通ったら出てくるはず）: ①`r.who` / `r.reward` は `Event` のフィールドではない（`who` と `reward` は `kind` の `EventType::Reward { .. }` の中）→ `match` か `if let` で取り出す ②`who`（`usize`）は `assert_eq!` で比べる（`abs_diff_eq!` は `f64` 用）③`zip` は短い方で止まるので、**件数の `assert_eq!`** が要る（罰が2件出るバグは件数で見つかる）④`round` も比べる ⑤none / immediate で罰が書かれないことのテスト。代わりに `lib.rs` のテストにある `round_float`（11/14）を使う手もある
 - 次の一歩（フェーズA 台帳）:
-  1. `make_reward_event` のバグ2つを直す（上の問い①②③）
-  2. テストを書く: retro で a・b の2人が j を本物と通報、c が偽通報 → 期待するイベントの件数と、誰にいくらかを**先に紙で計算**。none / immediate で罰が書かれないことも
-  3. 額をどこから取るか（上の「未決」）を決める
+  1. `aprox` を外して `approx` を入れ直し（または `round_float` を使い）、`test_make_rewardevent` を通す（上の「直す点」①〜④）
+  2. none / immediate のテスト（罰のイベントが書かれない）
+  3. 額をどこから取るか（11/24 の「未決」: `params` から計算し直す／`get_report_reward` の結果から取る）を決める
   4. `make_judge_event` のテスト（11/23 から未作成）
   5. ラウンドの中で、`get_reactions` の後に `Report` → `Judge` → `Reward` を `Ledger::append` で足す
   6. `Note.md` の説明（公開するものと、`&[Event]` を返す理由。11/19 から未確認）
-  - （済）照合を台帳の仕事として切り出す → 11/22 の `Verify` / `SimVerifier`
+  - 任意: `make_reward_event` の `let mut` ×4 と `if / else if / else {}` → `match params.mode`。`for_each` → `for` 文
 - （以下は v0.1 完了前の「次の一歩」。参考として残す）次の一歩（ステップ5 の続き）:
   1. `git add` / `commit` / `push`（本人。`src/lib.rs`）
   2. （済）「気になる点」1・2 は上の 11/16 夜で決着。3（表の書式）は任意

@@ -165,8 +165,9 @@ fn make_reward_event(params: &Params, events: &Vec<Event>) -> Vec<Event> {
 
 #[cfg(test)]
 mod tests{
-    use rand::rngs::StdRng;
-    use rand::{RngExt, SeedableRng};
+    // use rand::rngs::StdRng;
+    // use rand::{RngExt, SeedableRng};
+    use approx::abs_diff_eq;
     use super::*;
     #[test]
     fn test_read() {
@@ -272,5 +273,21 @@ mod tests{
         let expected = vec![event1, event2];
         assert_eq!(events, expected);
     }
-
+    #[test]
+    fn test_make_rewardevent(){
+        let mut params = Params::default();
+        params.mode = Mode::Retro;
+        let event0 :Event = Event::new(0, EventType::Judge { observer: 0, observed: 2, is_guilty: true });
+        let event1 :Event = Event::new(0, EventType::Judge { observer: 1, observed: 2, is_guilty: true });
+        let event2 :Event = Event::new(0, EventType::Judge { observer: 3, observed: 0, is_guilty: false });
+        let events = vec![event0, event1, event2];
+        let results = make_reward_event(&params, &events);
+        let expected1 = Event::new(0, EventType::Reward{who: 0, reward: -&params.cost + &params.r_imm + &params.r_true});
+        let expected2 = Event::new(0, EventType::Reward{who: 2, reward: - &params.p_viol});
+        let expected3 = Event::new(0, EventType::Reward{who: 1, reward: -&params.cost + &params.r_imm + &params.r_true});
+        let expected4 = Event::new(0, EventType::Reward{who: 3, reward: -&params.cost + &params.r_imm - &params.p_false});
+        let expecteds: Vec<Event> = vec![expected1, expected2, expected3, expected4];
+        results.iter().zip(expecteds.iter()).for_each(|(r, e)| {assert!(abs_diff_eq!(r.who, e.who, 1e-8))});
+        results.iter().zip(expecteds.iter()).for_each(|(r, e)| {assert!(abs_diff_eq!(r.reward, e.reward, 1e-8))});
+    }
 }
