@@ -142,17 +142,17 @@ fn make_reward_event(params: &Params, events: &Vec<Event>) -> Vec<Event> {
             r_true = params.r_true;
             r_imm = params.r_imm;
     } else {}
+    let mut is_checked:Vec<(usize,usize)> = Vec::new();
     events.iter()
         .for_each(|e| {
             match e.kind  {
                 EventType::Judge{observer, observed, is_guilty} => {
-                    let mut is_checked:Vec<usize> = Vec::new();
                     if is_guilty == true {
                         results.push(Event::new(e.round,EventType::Reward { who: observer, reward: r_imm + r_true - cost}));
-                        if mode == &Mode::Retro && is_checked.contains(&observed){
+                        if mode == &Mode::Retro && !is_checked.contains(&(e.round, observed)){
                             results.push(Event::new(e.round, EventType::Reward{who: observed, reward: -p_viol}));
+                            is_checked.push((e.round, observed));
                         }
-                        is_checked.push(observed);
                     } else {
                         results.push(Event::new(e.round,EventType::Reward { who: observer, reward: r_imm - p_false -cost}));
                     }
