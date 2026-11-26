@@ -49,7 +49,7 @@ Rust 2024 edition が必要です。乱数は `rand` 0.10 を使い、シード�
 |---|---|
 | `src/lib.rs` | `Params`・`Mode`・行動 / 反応 / 観測・報酬・損害・1 ラウンド（`round`） |
 | `src/agent.rs` | `Agent`・Q 値（違反 Q と通報 Q）・ε-greedy |
-| `src/experiment.rs` | 複数ラウンド・複数シードの実験と集計 |
+| `src/experiment.rs` | 複数ラウンド・複数シードの実験と集計。毎ラウンドの出来事を台帳に記録 |
 | `src/main.rs` | 3 条件の結果表 |
 | `src/ledger.rs` | 台帳（追記だけできるイベントの記録）、通報の照合、イベントの作成（作成中） |
 
@@ -81,8 +81,10 @@ Rust 2024 edition が必要です。乱数は `rand` 0.10 を使い、シード�
 
 ### 現在の状態
 
-- できた: `Ledger`（`new` / `read` / `append`）、`Verify` と `SimVerifier`、`Report` と `Judge` のイベントを作る関数（`make_report_event` / `make_judge_event`）
-- これから: `Reward` のイベントを作る関数、ラウンドから台帳に書くこと、`events` を非公開にして読む手段だけを公開すること
+- できた: `Ledger`（`new` / `read` / `append`。`events` は非公開で、読む手段と足す手段だけを公開）、`Verify` と `SimVerifier`、3 種類のイベントを作る関数（`make_report_event` / `make_judge_event` / `make_reward_event`）
+- シミュレーションとの接続: `run`（`src/experiment.rs`）が台帳を 1 冊持ち、毎ラウンド `Report` → その `Judge` の組、続いて `Reward` を足します。照合には全ラウンドの観測が要るため、台帳は 1 ラウンドを処理する `round` ではなく、全ラウンドを回す `run` に置いています。台帳をつないでも、結果の表は変わりません
+- 報酬と罰の額は、エージェントの学習に使ったのと同じ計算（`get_report_reward`）から取ります。学習の額と台帳の額が必ず一致します
+- これから: 台帳の中身の確認、ハッシュチェーン
 
 ## 未解決の課題
 

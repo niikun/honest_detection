@@ -258,12 +258,17 @@
   - 今のシミュレーションでは `Judge`（`verify`）と `Reward`（`ReportState`）はどちらも `ObserveStatus` から決まるので必ず一致する
   - **先で変える（1回だけ）**: `Verify` を ZK などに差し替える時に、報酬を `Judge` から決める形にする（今の形だと報酬が差し替えに追従しない）。不安ならラウンドの中で `Judge.is_guilty` と `ReportState` の一致を `assert!` する1行を足す（11/17 の決定7）
   - 現状: `test_make_rewardevent` の期待値の並びを i の順（罰 → 通報の報酬）に直し、**`cargo test` 23件成功**（`src/ledger.rs` の1行・未コミット）
+- 2026-11-26 夜: **台帳をシミュレーションにつないだ**（`cargo test` 24件成功。結果の表は 11/16 と同じ＝動きは変わっていない。`src/lib.rs`・`src/experiment.rs`・`src/ledger.rs` は未コミット）
+  - 決まったこと: ①**台帳は `experiment.rs` の `run` が持つ**（台帳は全ラウンドで1冊。`round` は1ラウンドで終わるので中に置けない。`SimVerifier` は `all_observes[event.round]` で引くので全ラウンド分の `Observes` が要り、貯められるのは `run` だけ）②`round` の中身は変えず、戻り値に `Observes` を足して `(Actions, ReportStates, Observes)` に（中で作って捨てていたものを外に出す、いちばん小さな変更）③1ラウンドの並び: `Report` → その `Judge` の組（`zip` で交互に `append`）→ そのラウンドの `Reward`（11/23 の決定のまま）
+  - 済: `run` が `Ledger` も返す（`(Agents, Vec<Actions>, Vec<ReportStates>, Ledger)`）。毎ラウンド `make_report_event` → `get_report_reward`（`observes` を `all_observes` に `push` する前）→ `push` → `make_judge_event(&reports, &all_observes)` → `make_reward_event(i, &report_rewards, &report_states)`。`make_reward_event` は `pub` で、引数は借りる形に。`run_seeds` は `_ledger` で受ける
+  - つまずきと解決: ①`round` から `get_rewards` の結果（`(違反Qの報酬, 通報Qの報酬)`）を返して `make_reward_event` に渡していた → 受け取るべきは `get_report_reward` の結果（`(通報者の報酬, 違反者の罰)`）。並びも中身も違い、コンパイルは通るので気づきにくいバグ。`round` の戻り値から外し、`run` で `get_report_reward` を呼ぶ形に ②`rewards.iter` の `()` 抜け ③`run_seeds` の受け取りが3つのまま
+  - 注意: 3000 ラウンド分の `Observes` と台帳を毎シード持つ（10人なら `Observes` 3万件程度。今は問題ない）
+  - メモ: 本人が疲れている日は、手順を1つずつ説明する（11/26「順番に説明して」）
 - 次の一歩（フェーズA 台帳）:
-  1. （11/26 済）`test_make_rewardevent` を新しいシグネチャで通す
-  2. （11/26 済）`make_judge_event` のテスト `test_make_judge_event`（Claude が書いた。本人の依頼）: `set_sim_vec` のラウンド0で、`Report` 2件 + `Reward` 1件 → `Judge` 2件（0→1 本物、1→0 偽物。`Reward` は無視）。`cargo test` 24件成功
-  3. ラウンドの中で、`get_reactions` の後に `Report` → `Judge` → `Reward` を `Ledger::append` で足す
-  4. `Note.md` の説明（公開するものと、`&[Event]` を返す理由。11/19 から未確認）
-  - 任意: `zip` の前に `report_rewards` と `report_states` の長さの `assert_eq!`（`make_report_event` と同じ）。引数を `&Vec` / `&ReportStates` で借りる形に（今は所有で受けている）
+  1. **台帳の中身を目で確かめる**: 1ラウンドだけ（または最初の数ラウンド）の `ledger.read()` を `println!` で表示し、`Report` → `Judge` の組と `Reward` が期待どおりか見る（違反者の罰は retro だけ、通報者が何人でも1件）
+  2. `Note.md` の説明（公開するものと、`&[Event]` を返す理由。11/19 から未確認）
+  3. その後: ハッシュチェーン（フェーズA の続き）
+  - 任意: `make_reward_event` の `zip` の前に長さの `assert_eq!`。`run` の `ledger.append` の `zip` の前に `reports.len() == judges.len()` の `assert_eq!`（`Report` 1件につき `Judge` 1件）。`Judge.is_guilty` と `ReportState` の一致の `assert!`（11/26 後半、`Verify` を差し替える時の備え）
 - （以下は v0.1 完了前の「次の一歩」。参考として残す）次の一歩（ステップ5 の続き）:
   1. `git add` / `commit` / `push`（本人。`src/lib.rs`）
   2. （済）「気になる点」1・2 は上の 11/16 夜で決着。3（表の書式）は任意
