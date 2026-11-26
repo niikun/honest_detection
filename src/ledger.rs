@@ -126,40 +126,18 @@ pub fn make_judge_event(events:&Vec<Event>, all_observes:&Vec<Observes>) -> Vec<
     judge_events
 }
 
-fn make_reward_event(params: &Params, events: &Vec<Event>) -> Vec<Event> {
-    let mode:&Mode = &params.mode;
-    let mut p_viol = 0.0;
-    let mut p_false = 0.0;
-    let mut r_true = 0.0;
-    let mut r_imm = 0.0;
-    let cost = params.cost;
+fn make_reward_event(round:usize, report_rewards:Vec<(f64, f64)>, report_states:ReportStates) -> Vec<Event> {
     let mut results:Vec<Event> = Vec::new(); 
-    if mode == &Mode::Immediate {
-            r_imm = params.r_imm;
-    } else if mode == &Mode::Retro {
-            p_viol = params.p_viol;
-            p_false = params.p_false;
-            r_true = params.r_true;
-            r_imm = params.r_imm;
-    } else {}
-    let mut is_checked:Vec<(usize,usize)> = Vec::new();
-    events.iter()
-        .for_each(|e| {
-            match e.kind  {
-                EventType::Judge{observer, observed, is_guilty} => {
-                    if is_guilty == true {
-                        results.push(Event::new(e.round,EventType::Reward { who: observer, reward: r_imm + r_true - cost}));
-                        if mode == &Mode::Retro && !is_checked.contains(&(e.round, observed)){
-                            results.push(Event::new(e.round, EventType::Reward{who: observed, reward: -p_viol}));
-                            is_checked.push((e.round, observed));
-                        }
-                    } else {
-                        results.push(Event::new(e.round,EventType::Reward { who: observer, reward: r_imm - p_false -cost}));
-                    }
-                },
-                _ => {panic!("Input event type must be Judge.");}
-            }
-        });
+    for (i, ((reward, penalty),state )) in report_rewards.iter().zip(report_states.states.iter()).enumerate(){
+        if  penalty != &0.0 {
+            let event = Event::new(round, EventType::Reward { who: i, reward: *penalty });
+            results.push(event);
+        } 
+        if state != &ReportState::Ignore {
+            let event = Event::new(round, EventType::Reward { who: i, reward: *reward });
+            results.push(event);
+        }
+    }
     results
 }    
 
@@ -276,17 +254,27 @@ mod tests{
     #[test]
     fn test_make_rewardevent(){
         let mut params = Params::default();
+        let round = 0;
         params.mode = Mode::Retro;
-        let event0 :Event = Event::new(0, EventType::Judge { observer: 0, observed: 2, is_guilty: true });
-        let event1 :Event = Event::new(0, EventType::Judge { observer: 1, observed: 2, is_guilty: true });
-        let event2 :Event = Event::new(0, EventType::Judge { observer: 3, observed: 0, is_guilty: false });
-        let events = vec![event0, event1, event2];
-        let results = make_reward_event(&params, &events);
+        let report_rewards = vec![
+            (-&params.cost + &params.r_imm + &params.r_true, 0.0),
+            (-&params.cost + &params.r_imm + &params.r_true, 0.0),
+            (0.0, -&params.p_viol),
+            (-&params.cost + &params.r_imm - &params.p_false, 0.0)
+            ]; 
+        // let event0 :Event = Event::new(0, EventType::Judge { observer: 0, observed: 2, is_guilty: true });
+        // let event1 :Event = Event::new(0, EventType::Judge { observer: 1, observed: 2, is_guilty: true });
+        // let event2 :Event = Event::new(0, EventType::Judge { observer: 3, observed: 0, is_guilty: false });
+        // let events = vec![event0, event1, event2];
+        let report_states = ReportStates {
+            states: vec![ReportState::ReportTrue, ReportState::ReportTrue, ReportState::Ignore, ReportState::ReportFalse]
+        };
+        let results = make_reward_event(round, report_rewards, report_states);
         let expected1 = Event::new(0, EventType::Reward{who: 0, reward: -&params.cost + &params.r_imm + &params.r_true});
         let expected2 = Event::new(0, EventType::Reward{who: 2, reward: - &params.p_viol});
         let expected3 = Event::new(0, EventType::Reward{who: 1, reward: -&params.cost + &params.r_imm + &params.r_true});
         let expected4 = Event::new(0, EventType::Reward{who: 3, reward: -&params.cost + &params.r_imm - &params.p_false});
-        let expecteds: Vec<Event> = vec![expected1, expected2, expected3, expected4];
+        let expecteds: Vec<Event> = vec![expected2, expected1, expected3, expected4];
         assert_eq!(results.len(), expecteds.len());
         results.iter().zip(expecteds.iter())
             .for_each(|(r, e)| {

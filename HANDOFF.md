@@ -1,6 +1,6 @@
 # honest_detection 学習ハンドオフ
 
-作成: 2026-10-28 / 最終更新: 2026-11-25
+作成: 2026-10-28 / 最終更新: 2026-11-26
 目的: 検知共有×評判ネットワークのシミュレーションを**一から作り**、Rust（型・所有権・テスト）と設計力を身につける。最終的に Axum API + Lovable(React) まで（期限 2026-12-31）。
 関連: 秘書ノート `topics/verifiable-detection-reward-network.md`（構想）/ `topics/honest-detection-rust-api-roadmap.md`（ロードマップ）
 
@@ -242,20 +242,24 @@
   - **⚠ クレート名の打ち間違い**: `approx`（浮動小数点の「ほぼ等しい」比較）のつもりで **`aprox = "0.0.0"`** が `[dev-dependencies]` に入った。中身を確認: 空の `lib.rs` だけで `build.rs` も無い別人のクレート（害は無いが目的のものではない）→ `cargo remove --dev aprox` で外し、`cargo add --dev approx` で入れ直す。**クレートを足すときは名前と crates.io のページ（作者・ダウンロード数）を確かめる**（似た名前の別クレートを入れる事故は、悪意のあるクレートだと危険）
   - 分かったこと: 依存クレートは**パッケージ単位**（`Cargo.toml` 1つ）で、`ledger.rs` だけには入れられない。`[dev-dependencies]` はテストのときだけ使われる。`approx` のマクロは `f64` どうしの比較用で、`Event` を丸ごとは比べられない
   - テストの直す点（コンパイルが通ったら出てくるはず）: ①`r.who` / `r.reward` は `Event` のフィールドではない（`who` と `reward` は `kind` の `EventType::Reward { .. }` の中）→ `match` か `if let` で取り出す ②`who`（`usize`）は `assert_eq!` で比べる（`abs_diff_eq!` は `f64` 用）③`zip` は短い方で止まるので、**件数の `assert_eq!`** が要る（罰が2件出るバグは件数で見つかる）④`round` も比べる ⑤none / immediate で罰が書かれないことのテスト。代わりに `lib.rs` のテストにある `round_float`（11/14）を使う手もある
-- 2026-11-25 後半: **`test_make_rewardevent` が通った**（`cargo test` 23件成功。`cedf875` までコミット済み。`src/ledger.rs` の小さな変更だけ未コミット）
+- 2026-11-25 後半: **`test_make_rewardevent` が通った**（`cargo test` 23件成功。`dff8ff4` でコミット済み）
   - 済: `aprox` を外して `approx = "0.5.1"` に入れ直し。テストは `match` で `Reward { who, reward }` を取り出し、`who` は `assert_eq!`、`reward` は `abs_diff_eq!`（誤差 1e-8）。`zip` の前に件数の `assert_eq!`。`Ledger` の `events` は非公開のまま
   - つまずきと解決: クロージャの引数に `r{...}` とパターンを書いた（`E0422` ほか）→ 常に当てはまるパターンしか書けないので、`match` で取り出す
   - **残る問い（未回答）**: 額を `get_report_reward`（学習用）と `make_reward_event`（台帳用）の2か所で計算している。式を片方だけ変えると食い違う。食い違わない形にするか、11/17 の決定7（記録どうしの照合）で検出するか
   - 資料: 進捗共有のスライド（7枚。claude.ai の Artifact）と README の「背景」「未解決の課題」を作った。README の「近い研究」（scalable oversight・AI control・mechanism design・TrueBit）は出典未確認なので、載せるならリンクを調べて足す
   - メモ: 問いを重ねすぎると嫌がられる（11/25「もういいです」）。1問ずつ、短く
+- 2026-11-26: **`make_reward_event` を作り直した（額は `get_report_reward` から取る）**（`src/ledger.rs` は未コミット。ライブラリはビルドが通るが、**テストが古いシグネチャのままでコンパイルエラー**）
+  - 決まったこと: ①**額は `get_report_reward` の結果から取る（A 案）**。式は1か所だけ（学習に使った額＝台帳の額）。none / immediate の罰のテストは本人の判断で省略 ②`Judge` は台帳には必要（none では本物も偽物も報酬が同じ −0.2 で、額から真偽が分からない。評判の「虚言癖」に要る）が、`make_reward_event` の入力には不要。`Judge`（`SimVerifier` が作る）と `Reward` の額（`get_report_reward` が作る）は別の道筋なので、11/17 の決定7の照らし合わせは残る ③**通報の報酬と罰は別々の `Reward` に分ける**（まとめると「−3.9 のうちいくらが罰か」が分からず、評判で犯罪歴と虚言癖を分けて数えられない）
+  - 済: `make_reward_event(round, report_rewards: Vec<(f64, f64)>, report_states: ReportStates) -> Vec<Event>`。1人ごとに独立した `if` を2つ: 罰 `*penalty != 0.0` なら `Reward { who: i, reward: *penalty }`／通報 `state != Ignore` なら `Reward { who: i, reward: *reward }`。両方に当てはまる人は2件
+  - 書く条件の考え方: **通報は `ReportState` で判断**（`r_imm == cost` なら通報したのに報酬 0.0 になりうるので、値では判断しない）。**罰は値で判断してよい**（「retro のときだけ・1人1回」は `get_report_reward` が済ませていて、罰 0.0 は起きていないのと同じ）
+  - つまずき: ①全員分を毎ラウンド書いていた（起きなかったことは書かない）②`!= (0.0, 0.0)` で値の判断 ③`Ignore` の違反者の罰が抜けた ④条件を `&&` / `||` / `else if` で1件にまとめていた → 独立した `if` 2つに ⑤`&f64` と `0.0` の比較は `*penalty`
+  - 答えかけの問い: テストを新しい引数で書き直す。同じ場面（0・1 が 2 を本物と通報、3 が 0 を偽通報）で、`report_states` の4人分は何か？ `report_rewards` は `get_report_reward` で作るか手で書くか
 - 次の一歩（フェーズA 台帳）:
-  1. （11/25 済）`test_make_rewardevent` を通す
-  2. none / immediate のテスト（罰のイベントが書かれない）。`make_reward_event` が `pub` でないので、使う側から呼べるようにするか決める
-  3. 額をどこから取るか（上の「残る問い」）を決める
-  4. `make_judge_event` のテスト（11/23 から未作成）
-  5. ラウンドの中で、`get_reactions` の後に `Report` → `Judge` → `Reward` を `Ledger::append` で足す
-  6. `Note.md` の説明（公開するものと、`&[Event]` を返す理由。11/19 から未確認）
-  - 任意: `make_reward_event` の `let mut` ×4 と `if / else if / else {}` → `match params.mode`。`for_each` → `for` 文
+  1. `test_make_rewardevent` を新しいシグネチャで書き直す（上の問い）。期待する件数と順番（i の順に、罰 → 通報の報酬）も紙で
+  2. `make_judge_event` のテスト（11/23 から未作成）
+  3. ラウンドの中で、`get_reactions` の後に `Report` → `Judge` → `Reward` を `Ledger::append` で足す
+  4. `Note.md` の説明（公開するものと、`&[Event]` を返す理由。11/19 から未確認）
+  - 任意: `zip` の前に `report_rewards` と `report_states` の長さの `assert_eq!`（`make_report_event` と同じ）。引数を `&Vec` / `&ReportStates` で借りる形に（今は所有で受けている）
 - （以下は v0.1 完了前の「次の一歩」。参考として残す）次の一歩（ステップ5 の続き）:
   1. `git add` / `commit` / `push`（本人。`src/lib.rs`）
   2. （済）「気になる点」1・2 は上の 11/16 夜で決着。3（表の書式）は任意
