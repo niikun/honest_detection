@@ -2,9 +2,10 @@ use rand::rngs::StdRng;
 use rand::{RngExt, SeedableRng};
 
 use crate::{Agent, Agents};
-use crate::{Params, Mode, ReportStates, ReportState, Actions, Action, round, get_harms};
+use crate::{Params, Mode, Observes, ReportStates, ReportState, Actions, Action, round, get_harms, get_report_reward};
+use crate::ledger::{Ledger, Event, make_report_event, make_judge_event, make_reward_event};
 
-pub fn run(mode:&Mode, seed:u64) ->(Agents, Vec<Actions>, Vec<ReportStates>){
+pub fn run(mode:&Mode, seed:u64) ->(Agents, Vec<Actions>, Vec<ReportStates>, Ledger){
     let mut params = Params::default();
     params.mode = mode.clone();
     params.seed = seed;
@@ -16,15 +17,27 @@ pub fn run(mode:&Mode, seed:u64) ->(Agents, Vec<Actions>, Vec<ReportStates>){
     let mut agents = Agents{agents:agents_vec};
     let mut all_actions:Vec<Actions> = Vec::new();
     let mut all_report_states:Vec<ReportStates> = Vec::new();
+    let mut all_observes:Vec<Observes> = Vec::new();
+    let mut ledger = Ledger::new();
     for i in 0..params.epochs {
         let mut epsilon = params.epsilon_start - (params.epsilon_start - params.epsilon_end)/ (params.epochs as f64) *i as f64;
-        let (actions, report_states) = round(&mut agents, &mut params, &mut rng, epsilon);
+        let (actions, report_states, observes) = round(&mut agents, &mut params, &mut rng, epsilon);    
+        let reports = make_report_event(i, &observes, &report_states);
+        let rewards = get_report_reward(&params, &report_states, &observes);
+        all_observes.push(observes);
+        let judges:Vec<Event> = make_judge_event(&reports, &all_observes);
+        let rewards:Vec<Event> = make_reward_event(i, &rewards, &report_states);
+        for (report, judge) in  reports.iter().zip(judges.iter()){
+                ledger.append(*report);
+                ledger.append(*judge);
+        }
+        rewards.iter().for_each(|reward| ledger.append(*reward));        
         if i >= ((params.epochs as f64) * 0.8) as usize{
             all_actions.push(actions);
             all_report_states.push(report_states);
         }
     }
-    (agents, all_actions, all_report_states)
+    (agents, all_actions, all_report_states, ledger)
 }
 
 pub fn run_seeds(mode:&Mode)->(Vec<f64>, Vec<f64>, Vec<f64>){
@@ -37,7 +50,7 @@ pub fn run_seeds(mode:&Mode)->(Vec<f64>, Vec<f64>, Vec<f64>){
         let mut count_violated = 0;
         let mut count_report_false = 0;
         let mut total_harms:f64 = 0.0;
-        let (agents, all_actions, all_report) =  run(&mode,i);
+        let (agents, all_actions, all_report, _ledger) =  run(&mode,i);
         all_actions.iter().for_each(|actions| {
             for action in actions.actions.iter(){
                 if action == &Action::Violated{

@@ -16,7 +16,7 @@ pub enum EventType {
 
 #[derive(Debug, Clone)]
 pub struct Ledger{
-    events:Vec<Event>
+    pub events:Vec<Event>
 }
 
 impl Event {
@@ -126,7 +126,7 @@ pub fn make_judge_event(events:&Vec<Event>, all_observes:&Vec<Observes>) -> Vec<
     judge_events
 }
 
-fn make_reward_event(round:usize, report_rewards:Vec<(f64, f64)>, report_states:ReportStates) -> Vec<Event> {
+pub fn make_reward_event(round:usize, report_rewards:&Vec<(f64, f64)>, report_states:&ReportStates) -> Vec<Event> {
     let mut results:Vec<Event> = Vec::new(); 
     for (i, ((reward, penalty),state )) in report_rewards.iter().zip(report_states.states.iter()).enumerate(){
         if  penalty != &0.0 {
@@ -269,12 +269,12 @@ mod tests{
         let report_states = ReportStates {
             states: vec![ReportState::ReportTrue, ReportState::ReportTrue, ReportState::Ignore, ReportState::ReportFalse]
         };
-        let results = make_reward_event(round, report_rewards, report_states);
+        let results = make_reward_event(round, &report_rewards, &report_states);
         let expected1 = Event::new(0, EventType::Reward{who: 0, reward: -&params.cost + &params.r_imm + &params.r_true});
         let expected2 = Event::new(0, EventType::Reward{who: 2, reward: - &params.p_viol});
         let expected3 = Event::new(0, EventType::Reward{who: 1, reward: -&params.cost + &params.r_imm + &params.r_true});
         let expected4 = Event::new(0, EventType::Reward{who: 3, reward: -&params.cost + &params.r_imm - &params.p_false});
-        let expecteds: Vec<Event> = vec![expected2, expected1, expected3, expected4];
+        let expecteds: Vec<Event> = vec![expected1, expected3, expected2, expected4];
         assert_eq!(results.len(), expecteds.len());
         results.iter().zip(expecteds.iter())
             .for_each(|(r, e)| {
@@ -289,5 +289,23 @@ mod tests{
                 assert_eq!(result_who, expected_who);
                 assert!(abs_diff_eq!(result_reward, expected_reward, epsilon=1e-8));
             })
+    }
+
+    #[test]
+    fn test_make_judge_event(){
+        // ラウンド0の観測: 0 が 1 を See、1 が 0 を Notsee（set_sim_vec）
+        let all_observes = set_sim_vec();
+        let events = vec![
+            Event::new(0, EventType::Report{observer: 0, observed: 1}),
+            Event::new(0, EventType::Report{observer: 1, observed: 0}),
+            // Report 以外は無視される
+            Event::new(0, EventType::Reward{who: 0, reward: 1.0}),
+        ];
+        let results = make_judge_event(&events, &all_observes);
+        let expected = vec![
+            Event::new(0, EventType::Judge{observer: 0, observed: 1, is_guilty: true}),
+            Event::new(0, EventType::Judge{observer: 1, observed: 0, is_guilty: false}),
+        ];
+        assert_eq!(results, expected);
     }
 }

@@ -285,7 +285,7 @@ pub fn get_harms(params:&Params, actions: &Actions) -> Vec<f64> {
     }).collect()
 }
 
-pub fn round(agents: &mut Agents, params:&mut Params, rng: &mut StdRng, epsilon:f64) ->(Actions, ReportStates) {
+pub fn round(agents: &mut Agents, params:&mut Params, rng: &mut StdRng, epsilon:f64) ->(Actions, ReportStates, Observes) {
     let actions = agents.get_actions(rng, epsilon);
     let observes:Observes = Observes::new(rng, params, &actions);
     let reactions = agents.get_reactions(&observes, rng, epsilon);
@@ -297,7 +297,7 @@ pub fn round(agents: &mut Agents, params:&mut Params, rng: &mut StdRng, epsilon:
         agents.agents[i].update_qvalue(params,&actions.actions[i], reward_action);
         agents.agents[i].update_qreport(params, &reactions.reactions[i], reward_reaction, &observes);
     }
-    (actions, report_states)
+    (actions, report_states, observes)
 }
 
 pub fn choose_action(qvalue:&Qvalue)->Action {
@@ -666,7 +666,7 @@ use super::*;
         for reward in rewards{
             // println!("reward_action:{}, reward_reaction: {}",reward.0,reward.1);
         }
-        let (actions, report_state) = round(&mut agents, &mut params, &mut rng, epsilon);
+        let (actions, report_state, _) = round(&mut agents, &mut params, &mut rng, epsilon);
         // println!("actions:{:?}",actions);
         // println!("report_state: {:?}", report_state);
         let agent0_after = &agents.agents[0];
@@ -746,7 +746,7 @@ use super::*;
         };
 
         let rewards = get_rewards(&mut params, &actions, &report_states,&observes);
-        let (actions, report_state) = round(&mut agents, &mut params, &mut rng, epsilon);
+        let (actions, report_state, _) = round(&mut agents, &mut params, &mut rng, epsilon);
         let agent0_after = &agents.agents[0];
         let agent1_after = &agents.agents[1];
         let multiplier = 1000.0;
@@ -838,7 +838,7 @@ use super::*;
             println!("reward_action:{}, reward_reaction: {}",reward.0,reward.1);
 
         }
-        let (actions, report_state) = round(&mut agents, &mut params, &mut rng, epsilon);
+        let (actions, report_state, _) = round(&mut agents, &mut params, &mut rng, epsilon);
         // println!("actions:{:?}",actions);
         // println!("report_state: {:?}", report_state);
         let agent0_after = &agents.agents[0];
@@ -868,7 +868,7 @@ use super::*;
         let mut total_report = 0;
         let epsilon = 0.3;
         for i in 0..params.epochs {
-            let (actions, report_states) = round(&mut agents, &mut params, &mut rng, epsilon);
+            let (actions, report_states, _) = round(&mut agents, &mut params, &mut rng, epsilon);
             if i >= params.epochs / 2 {
                 actions.actions.iter().for_each(|action| if action == &Action::Violated {total_violate += 1});
                 report_states.states.iter().for_each(|state| if state != &ReportState::Ignore {total_report += 1});

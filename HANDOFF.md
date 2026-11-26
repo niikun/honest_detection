@@ -254,9 +254,13 @@
   - 書く条件の考え方: **通報は `ReportState` で判断**（`r_imm == cost` なら通報したのに報酬 0.0 になりうるので、値では判断しない）。**罰は値で判断してよい**（「retro のときだけ・1人1回」は `get_report_reward` が済ませていて、罰 0.0 は起きていないのと同じ）
   - つまずき: ①全員分を毎ラウンド書いていた（起きなかったことは書かない）②`!= (0.0, 0.0)` で値の判断 ③`Ignore` の違反者の罰が抜けた ④条件を `&&` / `||` / `else if` で1件にまとめていた → 独立した `if` 2つに ⑤`&f64` と `0.0` の比較は `*penalty`
   - 答えかけの問い: テストを新しい引数で書き直す。同じ場面（0・1 が 2 を本物と通報、3 が 0 を偽通報）で、`report_states` の4人分は何か？ `report_rewards` は `get_report_reward` で作るか手で書くか
+- 2026-11-26 後半: **A 案（額は `get_report_reward` から取る）のまま進めると決定。作り直さない**
+  - 今のシミュレーションでは `Judge`（`verify`）と `Reward`（`ReportState`）はどちらも `ObserveStatus` から決まるので必ず一致する
+  - **先で変える（1回だけ）**: `Verify` を ZK などに差し替える時に、報酬を `Judge` から決める形にする（今の形だと報酬が差し替えに追従しない）。不安ならラウンドの中で `Judge.is_guilty` と `ReportState` の一致を `assert!` する1行を足す（11/17 の決定7）
+  - 現状: `test_make_rewardevent` の期待値の並びを i の順（罰 → 通報の報酬）に直し、**`cargo test` 23件成功**（`src/ledger.rs` の1行・未コミット）
 - 次の一歩（フェーズA 台帳）:
-  1. `test_make_rewardevent` を新しいシグネチャで書き直す（上の問い）。期待する件数と順番（i の順に、罰 → 通報の報酬）も紙で
-  2. `make_judge_event` のテスト（11/23 から未作成）
+  1. （11/26 済）`test_make_rewardevent` を新しいシグネチャで通す
+  2. （11/26 済）`make_judge_event` のテスト `test_make_judge_event`（Claude が書いた。本人の依頼）: `set_sim_vec` のラウンド0で、`Report` 2件 + `Reward` 1件 → `Judge` 2件（0→1 本物、1→0 偽物。`Reward` は無視）。`cargo test` 24件成功
   3. ラウンドの中で、`get_reactions` の後に `Report` → `Judge` → `Reward` を `Ledger::append` で足す
   4. `Note.md` の説明（公開するものと、`&[Event]` を返す理由。11/19 から未確認）
   - 任意: `zip` の前に `report_rewards` と `report_states` の長さの `assert_eq!`（`make_report_event` と同じ）。引数を `&Vec` / `&ReportStates` で借りる形に（今は所有で受けている）
