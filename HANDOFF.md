@@ -1,6 +1,6 @@
 # honest_detection 学習ハンドオフ
 
-作成: 2026-10-28 / 最終更新: 2026-11-26
+作成: 2026-10-28 / 最終更新: 2026-11-27
 目的: 検知共有×評判ネットワークのシミュレーションを**一から作り**、Rust（型・所有権・テスト）と設計力を身につける。最終的に Axum API + Lovable(React) まで（期限 2026-12-31）。
 関連: 秘書ノート `topics/verifiable-detection-reward-network.md`（構想）/ `topics/honest-detection-rust-api-roadmap.md`（ロードマップ）
 
@@ -264,10 +264,19 @@
   - つまずきと解決: ①`round` から `get_rewards` の結果（`(違反Qの報酬, 通報Qの報酬)`）を返して `make_reward_event` に渡していた → 受け取るべきは `get_report_reward` の結果（`(通報者の報酬, 違反者の罰)`）。並びも中身も違い、コンパイルは通るので気づきにくいバグ。`round` の戻り値から外し、`run` で `get_report_reward` を呼ぶ形に ②`rewards.iter` の `()` 抜け ③`run_seeds` の受け取りが3つのまま
   - 注意: 3000 ラウンド分の `Observes` と台帳を毎シード持つ（10人なら `Observes` 3万件程度。今は問題ない）
   - メモ: 本人が疲れている日は、手順を1つずつ説明する（11/26「順番に説明して」）
+- 2026-11-27: **台帳の中身を目で確かめた（none・retro とも期待どおり）**（`run` に `if i == 0 { println!("{:?}", &ledger.read()); }` を追加。未コミット。ログは `data/logs/event_round0.txt`）
+  - none（`experiment.rs` のテスト。20シード）: `Report` → `Judge` の組、`observer` / `observed` が一致、`Reward` は通報の件数と同じで全部 −0.2、罰なし
+  - retro（例: 0→6 本物、1→2・2→4・6→2・7→9 偽物）: 0 に 1.1（0.3+1.0−0.2）、偽通報者に −0.9、6 に罰 −3.0（1件）と自分の偽通報 −0.9 の**別々の2件**。`Reward` は通報5件＋罰1件＝6件、並びは i の順（罰 → 通報の報酬）
+  - つまずきと解決: ①`println!(...)` の後の `;` 抜け → 次の行の `(agents, ...)` が関数呼び出しの引数と読まれて `E0618` ②`ledger.read()[0..10]` は `[Event]`（サイズ不定）で `E0277` → `&` を付けて `&[Event]` に（添字は参照ではなく「そこにある値」を指す）
+  - 自分の言葉で: 6 の `Reward` を2件に分けるのは、評判で犯罪歴と虚言癖を分けて数えるため
+  - **決まったこと（評判の入口）**: 評判は `Judge` だけで数えられる。虚言癖＝`is_guilty = false` を `observer` ごとに数える（1人1ラウンド最大1件なので重複なし）。犯罪歴＝`is_guilty = true` を `observed` ごとに数え、**`(round, observed)` の組で重複を除いて1回**（罰と同じ単位）
+  - 未回答（急がない）: 評判を `Judge` から数えるなら、台帳に `Reward` を書く意味は何か（11/17 の決定7の照合用？）
 - 次の一歩（フェーズA 台帳）:
-  1. **台帳の中身を目で確かめる**: 1ラウンドだけ（または最初の数ラウンド）の `ledger.read()` を `println!` で表示し、`Report` → `Judge` の組と `Reward` が期待どおりか見る（違反者の罰は retro だけ、通報者が何人でも1件）
-  2. `Note.md` の説明（公開するものと、`&[Event]` を返す理由。11/19 から未確認）
-  3. その後: ハッシュチェーン（フェーズA の続き）
+  1. （任意）上の「未回答」の問い
+  2. `run` の `println!` を残すか決めてからコミット（`cargo test` のたびに出る）
+  3. `Note.md` の説明（公開するものと、`&[Event]` を返す理由。11/19 から未確認）
+  4. その後: ハッシュチェーン（フェーズA の続き）
+  - 済: ~~台帳の中身を目で確かめる~~（11/27）
   - 任意: `make_reward_event` の `zip` の前に長さの `assert_eq!`。`run` の `ledger.append` の `zip` の前に `reports.len() == judges.len()` の `assert_eq!`（`Report` 1件につき `Judge` 1件）。`Judge.is_guilty` と `ReportState` の一致の `assert!`（11/26 後半、`Verify` を差し替える時の備え）
 - （以下は v0.1 完了前の「次の一歩」。参考として残す）次の一歩（ステップ5 の続き）:
   1. `git add` / `commit` / `push`（本人。`src/lib.rs`）

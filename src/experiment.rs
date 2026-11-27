@@ -36,7 +36,7 @@ pub fn run(mode:&Mode, seed:u64) ->(Agents, Vec<Actions>, Vec<ReportStates>, Led
             all_actions.push(actions);
             all_report_states.push(report_states);
         }
-    }
+    };
     (agents, all_actions, all_report_states, ledger)
 }
 
@@ -81,11 +81,11 @@ mod tests{
 
     #[test]
     fn test_run_n() {
-        let mode = Mode::None;
+        let mode = Mode::Retro;
         let (all_mean_violated, all_mean_report_false, all_mean_harms) = run_seeds(&mode);
-        println!("violated_rate:     {:?}", all_mean_violated);
-        println!("report_false_rate: {:?}", all_mean_report_false);
-        println!("all_harms_rate:    {:?}", all_mean_harms );
+        // println!("violated_rate:     {:?}", all_mean_violated);
+        // println!("report_false_rate: {:?}", all_mean_report_false);
+        // println!("all_harms_rate:    {:?}", all_mean_harms );
         all_mean_violated.iter().for_each(|value| assert!(*value<=1.0 && *value>=0.95 ));
     }
 }

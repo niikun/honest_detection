@@ -1,0 +1,334 @@
+   Compiling honest_detection v0.1.0 (/home/kawata/rust/projects/honest_detection)
+warning: unused import: `Qreport`
+ --> src/lib.rs:4:35
+  |
+4 | use agent::{Agent,Agents, Qvalue, Qreport};
+  |                                   ^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `RngExt`
+ --> src/experiment.rs:2:12
+  |
+2 | use rand::{RngExt, SeedableRng};
+  |            ^^^^^^
+
+warning: unused imports: `Mode`, `Observe`, and `Params`
+ --> src/ledger.rs:2:13
+  |
+2 | use crate::{Params, Mode, Observes, Observe, ObserveStatus, ReportStates, ReportState};
+  |             ^^^^^^  ^^^^            ^^^^^^^
+
+warning: unused import: `RngExt`
+ --> src/experiment.rs:2:12
+  |
+2 | use rand::{RngExt, SeedableRng};
+  |            ^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::sync::MutexGuard`
+   --> src/lib.rs:314:9
+    |
+314 |     use std::sync::MutexGuard;
+    |         ^^^^^^^^^^^^^^^^^^^^^
+
+warning: variable does not need to be mutable
+  --> src/experiment.rs:23:13
+   |
+23 |         let mut epsilon = params.epsilon_start - (params.epsilon_start - params.epsilon_end)/ (params.epochs as f64) *i as f64;
+   |             ----^^^^^^^
+   |             |
+   |             help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+  --> src/experiment.rs:47:9
+   |
+47 |     let mut params = Params::default();
+   |         ----^^^^^^
+   |         |
+   |         help: remove this `mut`
+
+warning: unused variable: `seeds`
+  --> src/experiment.rs:48:9
+   |
+48 |     let seeds:Vec<i32> = Vec::new();
+   |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_seeds`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `agents`
+  --> src/experiment.rs:56:14
+   |
+56 |         let (agents, all_actions, all_report, _ledger) =  run(&mode,i);
+   |              ^^^^^^ help: if this is intentional, prefix it with an underscore: `_agents`
+
+warning: unused variable: `reaction`
+   --> src/lib.rs:162:54
+    |
+162 | pub fn get_reward(params:&mut Params,action:&Action, reaction:&Reaction, rng: &mut StdRng) -> (f64, f64) {
+    |                                                      ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_reaction`
+
+warning: unused variable: `all_mean_report_false`
+  --> src/experiment.rs:88:33
+   |
+88 |         let (all_mean_violated, all_mean_report_false, all_mean_harms) = run_seeds(&mode);
+   |                                 ^^^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_all_mean_report_false`
+
+warning: unused variable: `all_mean_harms`
+  --> src/experiment.rs:88:56
+   |
+88 |         let (all_mean_violated, all_mean_report_false, all_mean_harms) = run_seeds(&mode);
+   |                                                        ^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_all_mean_harms`
+
+warning: unused variable: `records`
+   --> src/ledger.rs:177:13
+    |
+177 |         let records = ledger.read();
+    |             ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_records`
+
+warning: variable does not need to be mutable
+   --> src/lib.rs:355:13
+    |
+355 |         let mut agent1 = Agent::new(0, &mut rng);
+    |             ----^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> src/lib.rs:356:13
+    |
+356 |         let mut agent2 = Agent::new(1, &mut rng);
+    |             ----^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> src/lib.rs:432:13
+    |
+432 |         let mut rng = StdRng::seed_from_u64(params.seed);
+    |             ----^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: unused variable: `rng`
+   --> src/lib.rs:432:13
+    |
+432 |         let mut rng = StdRng::seed_from_u64(params.seed);
+    |             ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_rng`
+
+warning: unused variable: `report_states`
+   --> src/lib.rs:548:13
+    |
+548 |         let report_states = set_report_states(&observes, &reactions);
+    |             ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_report_states`
+
+warning: variable does not need to be mutable
+   --> src/lib.rs:618:13
+    |
+618 |         let mut q_report = Qreport{
+    |             ----^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> src/lib.rs:624:13
+    |
+624 |         let mut q_value = Qvalue{
+    |             ----^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> src/lib.rs:629:13
+    |
+629 |         let mut agent0 = Agent{
+    |             ----^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: unused variable: `reactions`
+   --> src/lib.rs:654:13
+    |
+654 |         let reactions = Reactions {
+    |             ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_reactions`
+
+warning: unused variable: `reward`
+   --> src/lib.rs:666:13
+    |
+666 |         for reward in rewards{
+    |             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_reward`
+
+warning: variable does not need to be mutable
+   --> src/lib.rs:700:13
+    |
+700 |         let mut q_report = Qreport{
+    |             ----^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> src/lib.rs:706:13
+    |
+706 |         let mut q_value = Qvalue{
+    |             ----^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: unused variable: `reactions`
+   --> src/lib.rs:737:13
+    |
+737 |         let reactions = Reactions {
+    |             ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_reactions`
+
+warning: unused variable: `rewards`
+   --> src/lib.rs:748:13
+    |
+748 |         let rewards = get_rewards(&mut params, &actions, &report_states,&observes);
+    |             ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_rewards`
+
+warning: variable does not need to be mutable
+   --> src/lib.rs:786:13
+    |
+786 |         let mut q_report = Qreport{
+    |             ----^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> src/lib.rs:792:13
+    |
+792 |         let mut q_value = Qvalue{
+    |             ----^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: unused variable: `reactions`
+   --> src/lib.rs:825:13
+    |
+825 |         let reactions = Reactions {
+    |             ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_reactions`
+
+warning: unused variable: `actions`
+   --> src/lib.rs:841:14
+    |
+841 |         let (actions, report_state, _) = round(&mut agents, &mut params, &mut rng, epsilon);
+    |              ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_actions`
+
+warning: unused variable: `report_state`
+   --> src/lib.rs:841:23
+    |
+841 |         let (actions, report_state, _) = round(&mut agents, &mut params, &mut rng, epsilon);
+    |                       ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_report_state`
+
+warning: `honest_detection` (lib) generated 8 warnings (run `cargo fix --lib -p honest_detection` to apply 8 suggestions)
+warning: variable does not need to be mutable
+  --> src/main.rs:14:9
+   |
+14 |     let mut results:Vec<Result> = Vec::new();
+   |         ----^^^^^^^
+   |         |
+   |         help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `results`
+  --> src/main.rs:14:9
+   |
+14 |     let mut results:Vec<Result> = Vec::new();
+   |         ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_results`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: fields `mode`, `violated_rate`, `report_false_rate`, and `mean_harms` are never read
+ --> src/main.rs:6:5
+  |
+5 | pub struct Result {
+  |            ------ fields in this struct
+6 |     mode: Mode,
+  |     ^^^^
+7 |     violated_rate:f64,
+  |     ^^^^^^^^^^^^^
+8 |     report_false_rate:f64,
+  |     ^^^^^^^^^^^^^^^^^
+9 |     mean_harms:f64,
+  |     ^^^^^^^^^^
+  |
+  = note: `Result` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `honest_detection` (bin "honest_detection" test) generated 3 warnings (run `cargo fix --bin "honest_detection" -p honest_detection --tests` to apply 2 suggestions)
+warning: `honest_detection` (lib test) generated 29 warnings (5 duplicates) (run `cargo fix --lib -p honest_detection --tests` to apply 24 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.99s
+     Running unittests src/lib.rs (target/debug/deps/honest_detection-6836ba5aa7a395cf)
+
+running 24 tests
+[Event { round: 0, kind: Report { observer: 0, observed: 5 } }, Event { round: 0, kind: Judge { observer: 0, observed: 5, is_guilty: false } }, Event { round: 0, kind: Report { observer: 1, observed: 3 } }, Event { round: 0, kind: Judge { observer: 1, observed: 3, is_guilty: false } }, Event { round: 0, kind: Report { observer: 3, observed: 9 } }, Event { round: 0, kind: Judge { observer: 3, observed: 9, is_guilty: false } }, Event { round: 0, kind: Report { observer: 4, observed: 1 } }, Event { round: 0, kind: Judge { observer: 4, observed: 1, is_guilty: false } }, Event { round: 0, kind: Report { observer: 5, observed: 0 } }, Event { round: 0, kind: Judge { observer: 5, observed: 0, is_guilty: true } }, Event { round: 0, kind: Report { observer: 6, observed: 5 } }, Event { round: 0, kind: Judge { observer: 6, observed: 5, is_guilty: false } }, Event { round: 0, kind: Report { observer: 7, observed: 8 } }, Event { round: 0, kind: Judge { observer: 7, observed: 8, is_guilty: true } }, Event { round: 0, kind: Report { observer: 9, observed: 8 } }, Event { round: 0, kind: Judge { observer: 9, observed: 8, is_guilty: false } }, Event { round: 0, kind: Reward { who: 0, reward: -3.0 } }, Event { round: 0, kind: Reward { who: 0, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 1, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 3, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 4, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 5, reward: 1.1 } }, Event { round: 0, kind: Reward { who: 6, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 7, reward: 1.1 } }, Event { round: 0, kind: Reward { who: 8, reward: -3.0 } }, Event { round: 0, kind: Reward { who: 9, reward: -0.9 } }]
+
+thread 'ledger::tests::test_verifier_panic_case' (309686) panicked at src/ledger.rs:81:21:
+Event Report do not match Observes
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test ledger::tests::test_make_report_event ... ok
+test ledger::tests::test_read ... ok
+test ledger::tests::test_make_rewardevent ... ok
+test ledger::tests::test_make_judge_event ... ok
+test ledger::tests::test_verifier ... ok
+test ledger::tests::test_verifier_panic_case - should panic ... ok
+test tests::test_default ... ok
+test tests::test_get_actions ... ok
+test tests::test_get_harms ... ok
+reward_action:1, reward_reaction: -0.9
+reward_action:0, reward_reaction: 0
+test tests::test_get_observe_detectp0 ... ok
+test tests::test_get_observe_detectp1 ... ok
+test tests::test_get_reactions ... ok
+
+thread 'tests::test_set_report_states_wrong_order' (309702) panicked at src/lib.rs:250:9:
+assertion `left == right` failed
+  left: 4
+ right: 3
+test tests::test_get_report_reward ... ok
+test tests::test_get_rewards_mode_none ... ok
+test tests::test_get_rewards_mode_retro ... ok
+test tests::test_round ... ok
+test tests::test_round_ignore_observestatus ... ok
+test tests::test_round_see ... ok
+test tests::test_set_report_states_wrong_order - should panic ... ok
+test tests::test_update_qreport ... ok
+test tests::test_set_report_states ... ok
+test tests::test_run ... ok
+test tests::test_none_case_violate_and_report ... ok
+[Event { round: 0, kind: Report { observer: 0, observed: 6 } }, Event { round: 0, kind: Judge { observer: 0, observed: 6, is_guilty: true } }, Event { round: 0, kind: Report { observer: 1, observed: 2 } }, Event { round: 0, kind: Judge { observer: 1, observed: 2, is_guilty: false } }, Event { round: 0, kind: Report { observer: 2, observed: 4 } }, Event { round: 0, kind: Judge { observer: 2, observed: 4, is_guilty: false } }, Event { round: 0, kind: Report { observer: 6, observed: 2 } }, Event { round: 0, kind: Judge { observer: 6, observed: 2, is_guilty: false } }, Event { round: 0, kind: Report { observer: 7, observed: 9 } }, Event { round: 0, kind: Judge { observer: 7, observed: 9, is_guilty: false } }, Event { round: 0, kind: Reward { who: 0, reward: 1.1 } }, Event { round: 0, kind: Reward { who: 1, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 2, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 6, reward: -3.0 } }, Event { round: 0, kind: Reward { who: 6, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 7, reward: -0.9 } }]
+[Event { round: 0, kind: Report { observer: 0, observed: 4 } }, Event { round: 0, kind: Judge { observer: 0, observed: 4, is_guilty: false } }, Event { round: 0, kind: Report { observer: 2, observed: 4 } }, Event { round: 0, kind: Judge { observer: 2, observed: 4, is_guilty: false } }, Event { round: 0, kind: Report { observer: 3, observed: 8 } }, Event { round: 0, kind: Judge { observer: 3, observed: 8, is_guilty: false } }, Event { round: 0, kind: Report { observer: 4, observed: 6 } }, Event { round: 0, kind: Judge { observer: 4, observed: 6, is_guilty: false } }, Event { round: 0, kind: Report { observer: 6, observed: 9 } }, Event { round: 0, kind: Judge { observer: 6, observed: 9, is_guilty: true } }, Event { round: 0, kind: Report { observer: 7, observed: 9 } }, Event { round: 0, kind: Judge { observer: 7, observed: 9, is_guilty: true } }, Event { round: 0, kind: Report { observer: 9, observed: 2 } }, Event { round: 0, kind: Judge { observer: 9, observed: 2, is_guilty: false } }, Event { round: 0, kind: Reward { who: 0, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 2, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 3, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 4, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 6, reward: 1.1 } }, Event { round: 0, kind: Reward { who: 7, reward: 1.1 } }, Event { round: 0, kind: Reward { who: 9, reward: -3.0 } }, Event { round: 0, kind: Reward { who: 9, reward: -0.9 } }]
+[Event { round: 0, kind: Report { observer: 0, observed: 3 } }, Event { round: 0, kind: Judge { observer: 0, observed: 3, is_guilty: false } }, Event { round: 0, kind: Report { observer: 1, observed: 9 } }, Event { round: 0, kind: Judge { observer: 1, observed: 9, is_guilty: false } }, Event { round: 0, kind: Report { observer: 5, observed: 2 } }, Event { round: 0, kind: Judge { observer: 5, observed: 2, is_guilty: false } }, Event { round: 0, kind: Report { observer: 7, observed: 1 } }, Event { round: 0, kind: Judge { observer: 7, observed: 1, is_guilty: true } }, Event { round: 0, kind: Report { observer: 8, observed: 3 } }, Event { round: 0, kind: Judge { observer: 8, observed: 3, is_guilty: false } }, Event { round: 0, kind: Report { observer: 9, observed: 8 } }, Event { round: 0, kind: Judge { observer: 9, observed: 8, is_guilty: true } }, Event { round: 0, kind: Reward { who: 0, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 1, reward: -3.0 } }, Event { round: 0, kind: Reward { who: 1, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 5, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 7, reward: 1.1 } }, Event { round: 0, kind: Reward { who: 8, reward: -3.0 } }, Event { round: 0, kind: Reward { who: 8, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 9, reward: 1.1 } }]
+[Event { round: 0, kind: Report { observer: 1, observed: 9 } }, Event { round: 0, kind: Judge { observer: 1, observed: 9, is_guilty: false } }, Event { round: 0, kind: Report { observer: 5, observed: 8 } }, Event { round: 0, kind: Judge { observer: 5, observed: 8, is_guilty: false } }, Event { round: 0, kind: Report { observer: 8, observed: 1 } }, Event { round: 0, kind: Judge { observer: 8, observed: 1, is_guilty: false } }, Event { round: 0, kind: Report { observer: 9, observed: 1 } }, Event { round: 0, kind: Judge { observer: 9, observed: 1, is_guilty: false } }, Event { round: 0, kind: Reward { who: 1, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 5, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 8, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 9, reward: -0.9 } }]
+[Event { round: 0, kind: Report { observer: 0, observed: 5 } }, Event { round: 0, kind: Judge { observer: 0, observed: 5, is_guilty: false } }, Event { round: 0, kind: Report { observer: 1, observed: 7 } }, Event { round: 0, kind: Judge { observer: 1, observed: 7, is_guilty: false } }, Event { round: 0, kind: Report { observer: 2, observed: 4 } }, Event { round: 0, kind: Judge { observer: 2, observed: 4, is_guilty: false } }, Event { round: 0, kind: Report { observer: 4, observed: 0 } }, Event { round: 0, kind: Judge { observer: 4, observed: 0, is_guilty: false } }, Event { round: 0, kind: Report { observer: 5, observed: 6 } }, Event { round: 0, kind: Judge { observer: 5, observed: 6, is_guilty: true } }, Event { round: 0, kind: Report { observer: 6, observed: 2 } }, Event { round: 0, kind: Judge { observer: 6, observed: 2, is_guilty: false } }, Event { round: 0, kind: Report { observer: 7, observed: 3 } }, Event { round: 0, kind: Judge { observer: 7, observed: 3, is_guilty: false } }, Event { round: 0, kind: Report { observer: 9, observed: 2 } }, Event { round: 0, kind: Judge { observer: 9, observed: 2, is_guilty: true } }, Event { round: 0, kind: Reward { who: 0, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 1, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 2, reward: -3.0 } }, Event { round: 0, kind: Reward { who: 2, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 4, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 5, reward: 1.1 } }, Event { round: 0, kind: Reward { who: 6, reward: -3.0 } }, Event { round: 0, kind: Reward { who: 6, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 7, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 9, reward: 1.1 } }]
+[Event { round: 0, kind: Report { observer: 0, observed: 9 } }, Event { round: 0, kind: Judge { observer: 0, observed: 9, is_guilty: true } }, Event { round: 0, kind: Report { observer: 1, observed: 3 } }, Event { round: 0, kind: Judge { observer: 1, observed: 3, is_guilty: false } }, Event { round: 0, kind: Report { observer: 3, observed: 0 } }, Event { round: 0, kind: Judge { observer: 3, observed: 0, is_guilty: false } }, Event { round: 0, kind: Report { observer: 6, observed: 1 } }, Event { round: 0, kind: Judge { observer: 6, observed: 1, is_guilty: false } }, Event { round: 0, kind: Report { observer: 7, observed: 6 } }, Event { round: 0, kind: Judge { observer: 7, observed: 6, is_guilty: true } }, Event { round: 0, kind: Report { observer: 8, observed: 3 } }, Event { round: 0, kind: Judge { observer: 8, observed: 3, is_guilty: false } }, Event { round: 0, kind: Report { observer: 9, observed: 0 } }, Event { round: 0, kind: Judge { observer: 9, observed: 0, is_guilty: false } }, Event { round: 0, kind: Reward { who: 0, reward: 1.1 } }, Event { round: 0, kind: Reward { who: 1, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 3, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 6, reward: -3.0 } }, Event { round: 0, kind: Reward { who: 6, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 7, reward: 1.1 } }, Event { round: 0, kind: Reward { who: 8, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 9, reward: -3.0 } }, Event { round: 0, kind: Reward { who: 9, reward: -0.9 } }]
+[Event { round: 0, kind: Report { observer: 1, observed: 3 } }, Event { round: 0, kind: Judge { observer: 1, observed: 3, is_guilty: false } }, Event { round: 0, kind: Report { observer: 4, observed: 2 } }, Event { round: 0, kind: Judge { observer: 4, observed: 2, is_guilty: true } }, Event { round: 0, kind: Report { observer: 5, observed: 3 } }, Event { round: 0, kind: Judge { observer: 5, observed: 3, is_guilty: true } }, Event { round: 0, kind: Report { observer: 7, observed: 0 } }, Event { round: 0, kind: Judge { observer: 7, observed: 0, is_guilty: false } }, Event { round: 0, kind: Reward { who: 1, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 2, reward: -3.0 } }, Event { round: 0, kind: Reward { who: 3, reward: -3.0 } }, Event { round: 0, kind: Reward { who: 4, reward: 1.1 } }, Event { round: 0, kind: Reward { who: 5, reward: 1.1 } }, Event { round: 0, kind: Reward { who: 7, reward: -0.9 } }]
+[Event { round: 0, kind: Report { observer: 0, observed: 8 } }, Event { round: 0, kind: Judge { observer: 0, observed: 8, is_guilty: false } }, Event { round: 0, kind: Report { observer: 1, observed: 3 } }, Event { round: 0, kind: Judge { observer: 1, observed: 3, is_guilty: false } }, Event { round: 0, kind: Report { observer: 3, observed: 1 } }, Event { round: 0, kind: Judge { observer: 3, observed: 1, is_guilty: false } }, Event { round: 0, kind: Report { observer: 4, observed: 1 } }, Event { round: 0, kind: Judge { observer: 4, observed: 1, is_guilty: false } }, Event { round: 0, kind: Report { observer: 8, observed: 6 } }, Event { round: 0, kind: Judge { observer: 8, observed: 6, is_guilty: false } }, Event { round: 0, kind: Reward { who: 0, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 1, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 3, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 4, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 8, reward: -0.9 } }]
+[Event { round: 0, kind: Report { observer: 0, observed: 7 } }, Event { round: 0, kind: Judge { observer: 0, observed: 7, is_guilty: false } }, Event { round: 0, kind: Report { observer: 2, observed: 7 } }, Event { round: 0, kind: Judge { observer: 2, observed: 7, is_guilty: false } }, Event { round: 0, kind: Report { observer: 4, observed: 5 } }, Event { round: 0, kind: Judge { observer: 4, observed: 5, is_guilty: false } }, Event { round: 0, kind: Report { observer: 8, observed: 7 } }, Event { round: 0, kind: Judge { observer: 8, observed: 7, is_guilty: false } }, Event { round: 0, kind: Report { observer: 9, observed: 4 } }, Event { round: 0, kind: Judge { observer: 9, observed: 4, is_guilty: false } }, Event { round: 0, kind: Reward { who: 0, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 2, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 4, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 8, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 9, reward: -0.9 } }]
+[Event { round: 0, kind: Report { observer: 1, observed: 0 } }, Event { round: 0, kind: Judge { observer: 1, observed: 0, is_guilty: false } }, Event { round: 0, kind: Report { observer: 2, observed: 9 } }, Event { round: 0, kind: Judge { observer: 2, observed: 9, is_guilty: true } }, Event { round: 0, kind: Report { observer: 5, observed: 6 } }, Event { round: 0, kind: Judge { observer: 5, observed: 6, is_guilty: true } }, Event { round: 0, kind: Report { observer: 6, observed: 4 } }, Event { round: 0, kind: Judge { observer: 6, observed: 4, is_guilty: false } }, Event { round: 0, kind: Report { observer: 7, observed: 5 } }, Event { round: 0, kind: Judge { observer: 7, observed: 5, is_guilty: false } }, Event { round: 0, kind: Reward { who: 1, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 2, reward: 1.1 } }, Event { round: 0, kind: Reward { who: 5, reward: 1.1 } }, Event { round: 0, kind: Reward { who: 6, reward: -3.0 } }, Event { round: 0, kind: Reward { who: 6, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 7, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 9, reward: -3.0 } }]
+[Event { round: 0, kind: Report { observer: 1, observed: 2 } }, Event { round: 0, kind: Judge { observer: 1, observed: 2, is_guilty: false } }, Event { round: 0, kind: Report { observer: 5, observed: 9 } }, Event { round: 0, kind: Judge { observer: 5, observed: 9, is_guilty: false } }, Event { round: 0, kind: Report { observer: 6, observed: 1 } }, Event { round: 0, kind: Judge { observer: 6, observed: 1, is_guilty: false } }, Event { round: 0, kind: Report { observer: 7, observed: 1 } }, Event { round: 0, kind: Judge { observer: 7, observed: 1, is_guilty: false } }, Event { round: 0, kind: Report { observer: 9, observed: 2 } }, Event { round: 0, kind: Judge { observer: 9, observed: 2, is_guilty: true } }, Event { round: 0, kind: Reward { who: 1, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 2, reward: -3.0 } }, Event { round: 0, kind: Reward { who: 5, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 6, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 7, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 9, reward: 1.1 } }]
+[Event { round: 0, kind: Report { observer: 0, observed: 1 } }, Event { round: 0, kind: Judge { observer: 0, observed: 1, is_guilty: false } }, Event { round: 0, kind: Report { observer: 2, observed: 9 } }, Event { round: 0, kind: Judge { observer: 2, observed: 9, is_guilty: false } }, Event { round: 0, kind: Report { observer: 3, observed: 9 } }, Event { round: 0, kind: Judge { observer: 3, observed: 9, is_guilty: true } }, Event { round: 0, kind: Report { observer: 4, observed: 5 } }, Event { round: 0, kind: Judge { observer: 4, observed: 5, is_guilty: true } }, Event { round: 0, kind: Report { observer: 5, observed: 8 } }, Event { round: 0, kind: Judge { observer: 5, observed: 8, is_guilty: false } }, Event { round: 0, kind: Report { observer: 8, observed: 2 } }, Event { round: 0, kind: Judge { observer: 8, observed: 2, is_guilty: true } }, Event { round: 0, kind: Reward { who: 0, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 2, reward: -3.0 } }, Event { round: 0, kind: Reward { who: 2, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 3, reward: 1.1 } }, Event { round: 0, kind: Reward { who: 4, reward: 1.1 } }, Event { round: 0, kind: Reward { who: 5, reward: -3.0 } }, Event { round: 0, kind: Reward { who: 5, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 8, reward: 1.1 } }, Event { round: 0, kind: Reward { who: 9, reward: -3.0 } }]
+[Event { round: 0, kind: Report { observer: 0, observed: 8 } }, Event { round: 0, kind: Judge { observer: 0, observed: 8, is_guilty: false } }, Event { round: 0, kind: Report { observer: 3, observed: 4 } }, Event { round: 0, kind: Judge { observer: 3, observed: 4, is_guilty: false } }, Event { round: 0, kind: Report { observer: 5, observed: 7 } }, Event { round: 0, kind: Judge { observer: 5, observed: 7, is_guilty: false } }, Event { round: 0, kind: Report { observer: 6, observed: 0 } }, Event { round: 0, kind: Judge { observer: 6, observed: 0, is_guilty: false } }, Event { round: 0, kind: Report { observer: 9, observed: 8 } }, Event { round: 0, kind: Judge { observer: 9, observed: 8, is_guilty: false } }, Event { round: 0, kind: Reward { who: 0, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 3, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 5, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 6, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 9, reward: -0.9 } }]
+[Event { round: 0, kind: Report { observer: 5, observed: 9 } }, Event { round: 0, kind: Judge { observer: 5, observed: 9, is_guilty: true } }, Event { round: 0, kind: Report { observer: 6, observed: 5 } }, Event { round: 0, kind: Judge { observer: 6, observed: 5, is_guilty: false } }, Event { round: 0, kind: Report { observer: 7, observed: 5 } }, Event { round: 0, kind: Judge { observer: 7, observed: 5, is_guilty: false } }, Event { round: 0, kind: Reward { who: 5, reward: 1.1 } }, Event { round: 0, kind: Reward { who: 6, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 7, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 9, reward: -3.0 } }]
+[Event { round: 0, kind: Report { observer: 0, observed: 6 } }, Event { round: 0, kind: Judge { observer: 0, observed: 6, is_guilty: false } }, Event { round: 0, kind: Report { observer: 1, observed: 8 } }, Event { round: 0, kind: Judge { observer: 1, observed: 8, is_guilty: false } }, Event { round: 0, kind: Report { observer: 2, observed: 0 } }, Event { round: 0, kind: Judge { observer: 2, observed: 0, is_guilty: false } }, Event { round: 0, kind: Report { observer: 3, observed: 6 } }, Event { round: 0, kind: Judge { observer: 3, observed: 6, is_guilty: false } }, Event { round: 0, kind: Report { observer: 4, observed: 8 } }, Event { round: 0, kind: Judge { observer: 4, observed: 8, is_guilty: false } }, Event { round: 0, kind: Report { observer: 7, observed: 4 } }, Event { round: 0, kind: Judge { observer: 7, observed: 4, is_guilty: false } }, Event { round: 0, kind: Reward { who: 0, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 1, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 2, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 3, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 4, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 7, reward: -0.9 } }]
+[Event { round: 0, kind: Report { observer: 3, observed: 6 } }, Event { round: 0, kind: Judge { observer: 3, observed: 6, is_guilty: false } }, Event { round: 0, kind: Report { observer: 4, observed: 2 } }, Event { round: 0, kind: Judge { observer: 4, observed: 2, is_guilty: false } }, Event { round: 0, kind: Report { observer: 5, observed: 8 } }, Event { round: 0, kind: Judge { observer: 5, observed: 8, is_guilty: false } }, Event { round: 0, kind: Report { observer: 6, observed: 9 } }, Event { round: 0, kind: Judge { observer: 6, observed: 9, is_guilty: false } }, Event { round: 0, kind: Report { observer: 7, observed: 6 } }, Event { round: 0, kind: Judge { observer: 7, observed: 6, is_guilty: false } }, Event { round: 0, kind: Reward { who: 3, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 4, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 5, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 6, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 7, reward: -0.9 } }]
+[Event { round: 0, kind: Report { observer: 0, observed: 3 } }, Event { round: 0, kind: Judge { observer: 0, observed: 3, is_guilty: false } }, Event { round: 0, kind: Report { observer: 2, observed: 5 } }, Event { round: 0, kind: Judge { observer: 2, observed: 5, is_guilty: true } }, Event { round: 0, kind: Report { observer: 4, observed: 5 } }, Event { round: 0, kind: Judge { observer: 4, observed: 5, is_guilty: false } }, Event { round: 0, kind: Report { observer: 5, observed: 1 } }, Event { round: 0, kind: Judge { observer: 5, observed: 1, is_guilty: false } }, Event { round: 0, kind: Report { observer: 6, observed: 4 } }, Event { round: 0, kind: Judge { observer: 6, observed: 4, is_guilty: false } }, Event { round: 0, kind: Report { observer: 9, observed: 6 } }, Event { round: 0, kind: Judge { observer: 9, observed: 6, is_guilty: true } }, Event { round: 0, kind: Reward { who: 0, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 2, reward: 1.1 } }, Event { round: 0, kind: Reward { who: 4, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 5, reward: -3.0 } }, Event { round: 0, kind: Reward { who: 5, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 6, reward: -3.0 } }, Event { round: 0, kind: Reward { who: 6, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 9, reward: 1.1 } }]
+[Event { round: 0, kind: Report { observer: 2, observed: 0 } }, Event { round: 0, kind: Judge { observer: 2, observed: 0, is_guilty: false } }, Event { round: 0, kind: Report { observer: 5, observed: 4 } }, Event { round: 0, kind: Judge { observer: 5, observed: 4, is_guilty: false } }, Event { round: 0, kind: Report { observer: 6, observed: 5 } }, Event { round: 0, kind: Judge { observer: 6, observed: 5, is_guilty: false } }, Event { round: 0, kind: Report { observer: 8, observed: 7 } }, Event { round: 0, kind: Judge { observer: 8, observed: 7, is_guilty: true } }, Event { round: 0, kind: Report { observer: 9, observed: 0 } }, Event { round: 0, kind: Judge { observer: 9, observed: 0, is_guilty: false } }, Event { round: 0, kind: Reward { who: 2, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 5, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 6, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 7, reward: -3.0 } }, Event { round: 0, kind: Reward { who: 8, reward: 1.1 } }, Event { round: 0, kind: Reward { who: 9, reward: -0.9 } }]
+[Event { round: 0, kind: Report { observer: 1, observed: 9 } }, Event { round: 0, kind: Judge { observer: 1, observed: 9, is_guilty: false } }, Event { round: 0, kind: Report { observer: 2, observed: 0 } }, Event { round: 0, kind: Judge { observer: 2, observed: 0, is_guilty: false } }, Event { round: 0, kind: Report { observer: 3, observed: 0 } }, Event { round: 0, kind: Judge { observer: 3, observed: 0, is_guilty: false } }, Event { round: 0, kind: Report { observer: 4, observed: 6 } }, Event { round: 0, kind: Judge { observer: 4, observed: 6, is_guilty: false } }, Event { round: 0, kind: Report { observer: 7, observed: 5 } }, Event { round: 0, kind: Judge { observer: 7, observed: 5, is_guilty: false } }, Event { round: 0, kind: Reward { who: 1, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 2, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 3, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 4, reward: -0.9 } }, Event { round: 0, kind: Reward { who: 7, reward: -0.9 } }]
+
+thread 'experiment::tests::test_run_n' (309680) panicked at src/experiment.rs:92:51:
+assertion failed: *value <= 1.0 && *value >= 0.95
+test experiment::tests::test_run_n ... FAILED
+
+failures:
+
+failures:
+    experiment::tests::test_run_n
+
+test result: FAILED. 23 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.46s
+
+error: test failed, to rerun pass `--lib`
